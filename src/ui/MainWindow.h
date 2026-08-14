@@ -6,6 +6,8 @@ class McbController;
 class DataGridWidget;
 class StatusSidebar;
 class MessageLog;
+class GraphView;
+class OneModuleView;
 class QLabel;
 
 // 主窗口：菜单/工具栏/状态栏 + 中央 splitter（左数据网格，右板状态）+ 底部消息日志。
@@ -28,6 +30,14 @@ private slots:
     void onDeviceReady();
     void onRunStateChanged(bool running);
 
+    void onMeasureVzero();
+    void onMeasureVnoise();      // function=1
+    void onMeasureVnoiseD();     // function=3
+    void onToggleGraph(bool on);
+    void onToggleOneModule(bool on);
+    void onSaveResult();
+    void onMeasurementReady(int function);
+
 private:
     void buildMenus();
     void buildToolBar();
@@ -38,6 +48,8 @@ private:
     DataGridWidget* m_grid = nullptr;
     StatusSidebar* m_sidebar = nullptr;
     MessageLog*  m_log = nullptr;
+    GraphView*   m_graph = nullptr;
+    OneModuleView* m_one = nullptr;
 
     // 状态栏 5 格
     QLabel* m_stRun    = nullptr;   // 运行时间
