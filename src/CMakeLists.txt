@@ -5,6 +5,8 @@ set(APP_SOURCES
     main.cpp
     core/McbTypes.h
     core/McbTypes.cpp
+    core/IniFile.h
+    core/IniFile.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
