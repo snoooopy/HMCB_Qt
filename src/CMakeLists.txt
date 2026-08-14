@@ -26,6 +26,10 @@ set(APP_SOURCES
     ui/MessageLog.cpp
     ui/DataGridWidget.h
     ui/DataGridWidget.cpp
+    ui/WaveformWidget.h
+    ui/WaveformWidget.cpp
+    ui/GraphView.h
+    ui/GraphView.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
