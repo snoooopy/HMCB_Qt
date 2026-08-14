@@ -1,0 +1,39 @@
+#pragma once
+#include <functional>
+#include <cstdint>
+#include <QString>
+#include "core/McbTypes.h"
+#include "MCBCtrl.h"   // DMINFO, WPARAM
+
+// 后端抽象：真实硬件（RealMcbBackend，封装 libmcbctrl）与仿真（MockMcbBackend）共用此接口。
+// 回调可能来自非 GUI 线程，由 McbController 负责跨线程转发。
+class IMcbBackend {
+public:
+    virtual ~IMcbBackend() = default;
+
+    using StatusCb = std::function<void(WPARAM category, int nMCB, uint32_t code)>;
+    using DataCb   = std::function<void(const Mcb::McbFrame&)>;
+
+    virtual void setStatusCallback(StatusCb cb) = 0;
+    virtual void setDataCallback(DataCb cb) = 0;
+
+    // 生命周期
+    virtual void setConfigFile(const QString& path) = 0;
+    virtual void initialize() = 0;            // MCB_CMD_INITIAL
+    virtual void close() = 0;                 // MCB_CMD_CLOSE
+    virtual void start(uint32_t sampleCount) = 0;  // MCB_CMD_START（0=连续）
+    virtual void stop() = 0;                  // MCB_CMD_STOP
+
+    // 控制
+    virtual void setTrigger(int mode) = 0;    // 0内 / 1外 / 2级联
+    virtual void setRangeMode(int range) = 0;
+    virtual void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt) = 0;
+    virtual void setSendAllData(bool on) = 0;
+    virtual void setTestMode(bool on) = 0;
+
+    // 同步查询（短暂阻塞，经返回值给出）
+    virtual uint32_t getMcbNum() = 0;
+    virtual bool getDeviceReady() = 0;
+    virtual bool getRunStatus() = 0;
+    virtual DMINFO getDmInfo(int nMCB) = 0;
+};
