@@ -10,6 +10,8 @@ set(APP_SOURCES
     core/IMcbBackend.h
     core/MockMcbBackend.h
     core/MockMcbBackend.cpp
+    core/RealMcbBackend.h
+    core/RealMcbBackend.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
