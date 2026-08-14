@@ -14,6 +14,14 @@ set(APP_SOURCES
     core/RealMcbBackend.cpp
     core/McbController.h
     core/McbController.cpp
+    ui/MainWindow.h
+    ui/MainWindow.cpp
+    ui/StatusSidebar.h
+    ui/StatusSidebar.cpp
+    ui/MessageLog.h
+    ui/MessageLog.cpp
+    ui/DataGridWidget.h
+    ui/DataGridWidget.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})

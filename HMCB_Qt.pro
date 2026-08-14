@@ -13,7 +13,7 @@ DEFINES += QT UNIX
 
 # ---- 预编译控制库 libmcbctrl ----
 LIBDIR = $$PWD/../libMcbctrl_HMCB_20260421
-INCLUDEPATH += $$LIBDIR/src $$LIBDIR/include
+INCLUDEPATH += $$PWD/src $$LIBDIR/src $$LIBDIR/include
 LIBS += $$LIBDIR/libmcbctrl.so.1.0.0.131
 QMAKE_RPATHDIR += $$LIBDIR   # 运行期定位 .so（与 CMake 的 RPATH 等价）
 
