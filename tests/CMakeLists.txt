@@ -35,3 +35,10 @@ qt_add_executable(test_controller test_controller.cpp
 target_link_libraries(test_controller PRIVATE Qt6::Test mcbctrl)
 target_include_directories(test_controller PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME controller COMMAND test_controller)
+
+# ---- test_measurement：MeasurementEngine Zero/Noise 纯逻辑 ----
+qt_add_executable(test_measurement test_measurement.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/MeasurementEngine.cpp)
+target_link_libraries(test_measurement PRIVATE Qt6::Test)
+target_include_directories(test_measurement PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
+add_test(NAME measurement COMMAND test_measurement)
