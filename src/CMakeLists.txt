@@ -14,6 +14,10 @@ set(APP_SOURCES
     core/RealMcbBackend.cpp
     core/McbController.h
     core/McbController.cpp
+    core/MeasurementEngine.h
+    core/MeasurementEngine.cpp
+    core/CsvResultWriter.h
+    core/CsvResultWriter.cpp
     ui/MainWindow.h
     ui/MainWindow.cpp
     ui/StatusSidebar.h

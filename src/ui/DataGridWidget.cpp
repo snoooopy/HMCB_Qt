@@ -49,17 +49,36 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
 
     rebuildModel();
     refreshHeader();
+
+    // 双击表头循环显示模式 Raw→Vzero→Vnoise→Raw（对照 OnDblclkListData）
+    connect(m_view->horizontalHeader(), &QHeaderView::sectionDoubleClicked,
+            this, [this](int) {
+        setDisplayMode(static_cast<DisplayMode>((static_cast<int>(m_mode) + 1) % 3));
+    });
 }
 
 void DataGridWidget::setDisplayFormat(DisplayFormat f) {
     if (m_fmt == f) return;
     m_fmt = f;
-    refreshFromCache();
+    refreshCurrent();
+}
+
+void DataGridWidget::setDisplayMode(DisplayMode m) {
+    if (m_mode == m) return;
+    m_mode = m;
+    refreshCurrent();
+}
+
+void DataGridWidget::showMeasurement(const MeasurementEngine* eng, int nMCB, int function) {
+    m_eng = eng;
+    m_measMCB = nMCB;
+    m_measFn = function;
+    setDisplayMode(function == 0 ? DisplayMode::Vzero : DisplayMode::Vnoise);
 }
 
 void DataGridWidget::setThresholds(uint32_t lo, uint32_t hi) {
     m_lo = lo; m_hi = hi;
-    refreshFromCache();
+    refreshCurrent();
 }
 
 void DataGridWidget::setRows(int rows) {
@@ -67,7 +86,7 @@ void DataGridWidget::setRows(int rows) {
     m_rows = rows;
     rebuildModel();
     refreshHeader();
-    refreshFromCache();
+    refreshCurrent();
 }
 
 int DataGridWidget::pageCount() const {
@@ -79,7 +98,7 @@ void DataGridWidget::setPage(int page) {
     if (page == m_page) return;
     m_page = page;
     refreshHeader();
-    refreshFromCache();
+    refreshCurrent();
 }
 
 void DataGridWidget::nextPage() { setPage(m_page + 1); }
@@ -88,7 +107,7 @@ void DataGridWidget::prevPage() { setPage(m_page - 1); }
 void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
     m_last = frame.channels;
     m_lastMCB = nMCB;
-    refreshFromCache();
+    if (m_mode == DisplayMode::Raw) refreshFromCache();   // 测量模式下不被新帧覆盖
 }
 
 void DataGridWidget::rebuildModel() {
@@ -135,6 +154,46 @@ void DataGridWidget::refreshFromCache() {
             const uint32_t v = m_last.at(idx);
             it->setText(formatValue(v));
             it->setBackground((v >= m_lo && v <= m_hi) ? pass : fail);
+        }
+    }
+}
+
+void DataGridWidget::refreshCurrent() {
+    if (m_mode == DisplayMode::Raw) refreshFromCache();
+    else                            refreshMeasurement();
+}
+
+void DataGridWidget::refreshMeasurement() {
+    if (!m_eng) return;
+    const auto& cfg = m_eng->config();
+    const int start = m_page * kPageCols;
+    const QBrush pass(QColor(220, 255, 220));   // 合格：浅绿
+    const QBrush fail(QColor(200, 200, 200));   // 不合格：灰底
+    const QColor  failTxt(255, 0, 0);           // 不合格：红字
+    for (int c = 0; c < kPageCols; ++c) {
+        const int module = start + c;
+        for (int r = 0; r < m_rows; ++r) {
+            QStandardItem* it = m_model->item(r, c + 1);
+            if (!it) continue;
+            const int idx = module * m_rows + r;
+            double value = 0; double lo = 0, hi = 0;
+            if (m_mode == DisplayMode::Vzero) {
+                const auto& z = m_eng->vz(m_measMCB);
+                if (idx >= z.size()) { it->setText(QString()); continue; }
+                value = (cfg.vzFormat == 1) ? z[idx] / cfg.data2mV : z[idx];
+                lo = cfg.vzMin; hi = cfg.vzMax;
+                it->setText(QString::number(value, 'f', cfg.vzFormat == 1 ? 2 : 0));
+            } else {
+                const auto& n = m_eng->vn(m_measMCB);
+                if (idx >= n.size()) { it->setText(QString()); continue; }
+                value = MeasurementEngine::toDisplayFormat(n[idx].fwhm, cfg.vnFormat, cfg.adBit);
+                if (m_measFn == 3) { lo = cfg.vndMin; hi = cfg.vndMax; }
+                else               { lo = cfg.vnMin;  hi = cfg.vnMax;  }
+                it->setText(QString::number(value, 'f', cfg.adBit <= 16 ? 1 : 0));
+            }
+            const bool good = MeasurementEngine::passFail(value, lo, hi);
+            it->setBackground(good ? pass : fail);
+            it->setForeground(good ? QColor(0, 0, 0) : failTxt);
         }
     }
 }

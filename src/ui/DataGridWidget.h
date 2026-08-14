@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <QVector>
 #include "core/McbTypes.h"
+#include "core/MeasurementEngine.h"
 
 class QTableView;
 class QStandardItemModel;
@@ -16,11 +17,17 @@ class DataGridWidget : public QWidget {
     Q_OBJECT
 public:
     enum class DisplayFormat { Hex, Dec, mV };
+    enum class DisplayMode { Raw, Vzero, Vnoise };
 
     explicit DataGridWidget(QWidget* parent = nullptr);
 
     void setDisplayFormat(DisplayFormat f);
     DisplayFormat displayFormat() const { return m_fmt; }
+
+    void setDisplayMode(DisplayMode m);
+    DisplayMode displayMode() const { return m_mode; }
+    // 注入测量结果并切到 Vz/Vn 模式刷新（function: 0 Zero 1/3 Noise）
+    void showMeasurement(const MeasurementEngine* eng, int nMCB, int function);
 
     void setThresholds(uint32_t lo, uint32_t hi);  // 着色区间（闭区间内=通过色）
     void setRows(int rows);                          // 按设备几何设置每模块通道行数
@@ -49,8 +56,14 @@ private:
     QVector<uint32_t> m_last;
     int m_lastMCB = -1;
 
+    DisplayMode m_mode = DisplayMode::Raw;
+    const MeasurementEngine* m_eng = nullptr;
+    int m_measMCB = 0, m_measFn = 0;
+
     void rebuildModel();
     void refreshFromCache();
+    void refreshMeasurement();
+    void refreshCurrent();   // 按当前模式派发
     void refreshHeader();
     QString formatValue(uint32_t v) const;
     static QString colorFor(uint32_t v, uint32_t lo, uint32_t hi);
