@@ -8,6 +8,8 @@ set(APP_SOURCES
     core/IniFile.h
     core/IniFile.cpp
     core/IMcbBackend.h
+    core/MockMcbBackend.h
+    core/MockMcbBackend.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
