@@ -48,10 +48,12 @@ DMINFO MockMcbBackend::getDmInfo(int nMCB) {
     return d;
 }
 
-void MockMcbBackend::start(uint32_t) {
+void MockMcbBackend::start(uint32_t sampleCount) {
     if (m_running) return;
     if (m_dataThread.joinable()) m_dataThread.join();
     m_running = true;
+    m_sampleLimit = sampleCount;
+    m_produced = 0;
     m_dataThread = std::thread([this] { dataLoop(); });
     emitStatus(MCB_DVSTS, 0, 0x0300);  // STARTOK
 }
@@ -65,6 +67,7 @@ void MockMcbBackend::stop() {
 void MockMcbBackend::dataLoop() {
     const int n = m_dmNum * m_rowNum * m_colNum;
     while (m_running) {
+        if (m_sampleLimit > 0 && m_produced >= m_sampleLimit) break;   // 采满自停
         Mcb::McbFrame f;
         f.nMCB = 0;
         f.pcounter = ++m_pcounter;
@@ -78,6 +81,9 @@ void MockMcbBackend::dataLoop() {
             f.channels[i] = static_cast<uint32_t>(std::clamp(v, 0.0, 4095.0));
         }
         if (m_data) m_data(f);
+        ++m_produced;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    m_running = false;
+    if (m_sampleLimit > 0) emitStatus(MCB_STOPOK, 0, 0x0300);   // 复刻硬件"采满自停"
 }

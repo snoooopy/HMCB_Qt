@@ -41,6 +41,8 @@ private:
     std::atomic_bool m_ready{false};
     std::atomic_uint m_pcounter{0};
     std::thread m_dataThread;
+    uint32_t m_sampleLimit = 0;          // 0=连续；>0=有限采集帧数
+    std::atomic_uint m_produced{0};      // 本轮已产出帧数
 
     int m_range = 7;
     int m_dmNum = 25, m_rowNum = 32, m_colNum = 4;  // 默认几何，可由配置覆盖

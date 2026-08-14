@@ -32,6 +32,31 @@ private slots:
         QCOMPARE(b.getRunStatus(), false);
         b.close();
     }
+
+    void finiteAcquisitionStops() {
+        MockMcbBackend b;
+        std::atomic<int> frames{0};
+        std::atomic<bool> stopok{false};
+        b.setDataCallback([&](const Mcb::McbFrame&) { ++frames; });
+        b.setStatusCallback([&](WPARAM cat, int, uint32_t) {
+            if (cat == MCB_STOPOK) stopok = true;
+        });
+
+        b.initialize();
+        QElapsedTimer t; t.start();
+        while (!b.getDeviceReady() && t.elapsed() < 2000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(b.getDeviceReady(), "did not reach DVREADY within 2s");
+
+        b.start(5);                 // 有限 5 帧
+        t.restart();
+        while (!stopok && t.elapsed() < 4000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(stopok, "no STOPOK within 4s after finite start");
+        QVERIFY2(frames >= 5 && frames <= 7,
+                 qPrintable(QString("expected ~5 frames, got %1").arg(frames.load())));
+        b.close();
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMockBackend)
