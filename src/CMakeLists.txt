@@ -1,8 +1,10 @@
 qt_standard_project_setup()
 
-# Task 1 阶段：仅 main.cpp。后续任务逐步加入 core/* 与 ui/* 源文件。
+# 逐步加入 core/* 与 ui/* 源文件。
 set(APP_SOURCES
     main.cpp
+    core/McbTypes.h
+    core/McbTypes.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
