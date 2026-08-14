@@ -30,6 +30,8 @@ set(APP_SOURCES
     ui/WaveformWidget.cpp
     ui/GraphView.h
     ui/GraphView.cpp
+    ui/OneModuleView.h
+    ui/OneModuleView.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
