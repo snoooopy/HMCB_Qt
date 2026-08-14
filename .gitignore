@@ -4,3 +4,5 @@ build/
 *.autosave
 /.cache/
 compile_commands.json
+build-qmake/
+*.stash
