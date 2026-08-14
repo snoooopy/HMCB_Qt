@@ -25,3 +25,13 @@ qt_add_executable(test_mockbackend test_mockbackend.cpp
 target_link_libraries(test_mockbackend PRIVATE Qt6::Test)
 target_include_directories(test_mockbackend PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME mockbackend COMMAND test_mockbackend)
+
+# ---- test_controller：McbController 跨线程回调→Qt 信号 ----
+qt_add_executable(test_controller test_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/McbController.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/MockMcbBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/RealMcbBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/McbTypes.cpp)
+target_link_libraries(test_controller PRIVATE Qt6::Test mcbctrl)
+target_include_directories(test_controller PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
+add_test(NAME controller COMMAND test_controller)

@@ -1,0 +1,52 @@
+#pragma once
+#include <QObject>
+#include <memory>
+#include <cstdint>
+#include "core/IMcbBackend.h"   // 也带来 McbTypes.h / MCBCtrl.h
+
+// McbController：UI 与后端之间的 Qt 粘合层（QObject）。
+//
+// 职责：
+//   1. 按 app.ini [BACKEND] Mode 选择 Real / Mock 后端并持有。
+//   2. 注册后端回调；回调在库/仿真工作线程触发，这里直接 emit Qt 信号，
+//      由于本对象 affinity 为 GUI 线程，带 context 的连接会自动走 Queued，
+//      把工作线程的数据安全地转发到 GUI 线程（Mcb::McbFrame 需注册 metatype）。
+//   3. 暴露给 UI 的类型化命令槽（initialize/start/stop/setTrigger …）。
+class McbController : public QObject {
+    Q_OBJECT
+public:
+    explicit McbController(QObject* parent = nullptr);
+
+    void setBackendMode(const QString& mode);   // "mock" / "real"
+    void startUp();      // 构造后端、注册回调（须在 GUI 线程调用）
+    void shutdown();     // 关闭后端、释放资源
+
+public slots:
+    void initializeBackend();
+    void start(uint32_t sampleCount = 0);
+    void stop();
+    void setTrigger(int mode);
+    void setRangeMode(int range);
+    void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt);
+
+    // 同步查询
+    DMINFO getDmInfo(int nMCB);
+    uint32_t getMcbNum();
+    bool getRunStatus();
+
+signals:
+    // 状态文本 + 归属板（用于消息日志/状态栏）
+    void statusMessage(QString text, int nMCB);
+    // 设备就绪（收到 MCB_DVREADY）
+    void deviceReady();
+    // 采集启停状态翻转
+    void runStateChanged(bool running);
+    // 一帧数据到达（nMCB, frame）
+    void frameReady(int nMCB, Mcb::McbFrame frame);
+    // 在线板数量变化（取数时刷新）
+    void boardCountChanged(int count);
+
+private:
+    std::unique_ptr<IMcbBackend> m_be;
+    QString m_mode = QStringLiteral("mock");
+};
