@@ -35,6 +35,32 @@ private slots:
         c.stop();
         c.shutdown();
     }
+
+    void measureZeroProducesResults() {
+        qRegisterMetaType<Mcb::McbFrame>("Mcb::McbFrame");
+        McbController c; c.setBackendMode("mock"); c.startUp();
+        std::atomic<bool> ready{false};
+        connect(&c, &McbController::deviceReady, this, [&]{ ready = true; });
+        c.initializeBackend();
+        QElapsedTimer t; t.start();
+        while (!ready && t.elapsed() < 2000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(ready, "no deviceReady within 2s");
+
+        std::atomic<bool> measured{false};
+        connect(&c, &McbController::measurementReady, this,
+                [&](int) { measured = true; });
+        // 调小采样数以加速测试（默认 512 帧×100ms 太慢）
+        MeasurementEngine::Config cfg = c.engine()->config();
+        cfg.vzSampleNum = 5;
+        c.engine()->applyConfig(cfg);
+        c.measure(0, 300);           // Zero，5 帧即自停
+        t.restart();
+        while (!measured && t.elapsed() < 6000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(measured, "no measurementReady within 6s");
+        QVERIFY2(c.engine()->vz(0).size() > 0,
+                 "Zero result vector empty after measurement");
+        c.shutdown();
+    }
 };
 
 QTEST_GUILESS_MAIN(TestController)

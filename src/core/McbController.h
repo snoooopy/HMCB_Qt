@@ -3,6 +3,7 @@
 #include <memory>
 #include <cstdint>
 #include "core/IMcbBackend.h"   // 也带来 McbTypes.h / MCBCtrl.h
+#include "core/MeasurementEngine.h"
 
 // McbController：UI 与后端之间的 Qt 粘合层（QObject）。
 //
@@ -28,6 +29,9 @@ public slots:
     void setTrigger(int mode);
     void setRangeMode(int range);
     void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt);
+    void measure(int function, uint32_t sampleCount);   // 0 Zero 1 Noise 3 NoiseD
+
+    MeasurementEngine* engine() { return m_engine.get(); }
 
     // 同步查询
     DMINFO getDmInfo(int nMCB);
@@ -45,8 +49,14 @@ signals:
     void frameReady(int nMCB, Mcb::McbFrame frame);
     // 在线板数量变化（取数时刷新）
     void boardCountChanged(int count);
+    // 测量完成（STOPOK 后算完）：function 0 Zero 1 Noise 3 NoiseD
+    void measurementReady(int function);
 
 private:
     std::unique_ptr<IMcbBackend> m_be;
     QString m_mode = QStringLiteral("mock");
+    std::unique_ptr<MeasurementEngine> m_engine;
+    int m_measFn = -1;
+    bool m_running = false;
+    void handleStopok();      // STOPOK 触发计算 + 通知 UI
 };
