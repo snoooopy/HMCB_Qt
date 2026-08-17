@@ -18,6 +18,8 @@ set(APP_SOURCES
     core/MeasurementEngine.cpp
     core/CsvResultWriter.h
     core/CsvResultWriter.cpp
+    core/XmlGainWriter.h
+    core/XmlGainWriter.cpp
     ui/MainWindow.h
     ui/MainWindow.cpp
     ui/StatusSidebar.h
@@ -38,7 +40,7 @@ qt_add_executable(HMCB_Qt ${APP_SOURCES})
 target_include_directories(HMCB_Qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${MCBCTRL_INCLUDE_DIRS})
-target_link_libraries(HMCB_Qt PRIVATE Qt6::Widgets Qt6::Network mcbctrl)
+target_link_libraries(HMCB_Qt PRIVATE Qt6::Widgets Qt6::Network Qt6::Xml mcbctrl)
 set_target_properties(HMCB_Qt PROPERTIES
     WIN32_EXECUTABLE OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

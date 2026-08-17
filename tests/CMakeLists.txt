@@ -52,3 +52,10 @@ qt_add_executable(test_csvwriter test_csvwriter.cpp
 target_link_libraries(test_csvwriter PRIVATE Qt6::Test)
 target_include_directories(test_csvwriter PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME csvwriter COMMAND test_csvwriter)
+
+# ---- test_xmlwriter：增益写回 DIASConfig.xml ----
+qt_add_executable(test_xmlwriter test_xmlwriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/XmlGainWriter.cpp)
+target_link_libraries(test_xmlwriter PRIVATE Qt6::Test Qt6::Xml)
+target_include_directories(test_xmlwriter PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME xmlwriter COMMAND test_xmlwriter)

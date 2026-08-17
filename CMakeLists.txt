@@ -10,7 +10,7 @@ add_compile_definitions(QT UNIX)   # 匹配库的 Linux 编译分支与 MCBCtrl.
 
 option(HMCB_BUILD_TESTS "Build QtTest unit tests" ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Network)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Network Xml)
 if(HMCB_BUILD_TESTS)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
 endif()

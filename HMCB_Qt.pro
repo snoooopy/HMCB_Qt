@@ -6,7 +6,7 @@
 #   若偏好 qmake，打开本 .pro 即可。
 # - 源文件用递归通配自动收集，新增 core/ui 文件无需手动登记。
 
-QT += widgets network
+QT += widgets network xml
 CONFIG += c++17 console
 CONFIG -= app_bundle
 DEFINES += QT UNIX
