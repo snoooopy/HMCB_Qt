@@ -1,4 +1,5 @@
 #include "MeasurementEngine.h"
+#include <QMutexLocker>
 #include <algorithm>
 #include <cmath>
 
@@ -8,6 +9,7 @@ static constexpr uint32_t kInlDaMin = 100;           // DAMIN
 
 void MeasurementEngine::reset(int nMCB) {
     int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
     m_ring[i].clear();
     m_latest[i].clear();
     m_count[i] = 0;
@@ -18,14 +20,26 @@ void MeasurementEngine::reset(int nMCB) {
 
 void MeasurementEngine::appendFrame(int nMCB, const QVector<uint32_t>& channels) {
     int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
     if ((int)m_ring[i].size() >= m_depth) m_ring[i].removeFirst();
     m_ring[i].append(channels);
     m_latest[i] = channels;
     m_count[i] = std::min(m_count[i] + 1, m_depth);
 }
 
+int MeasurementEngine::frameCount(int nMCB) const {
+    QMutexLocker lk(&m_mutex);
+    return m_count[nMCB & 7];
+}
+
+QVector<uint32_t> MeasurementEngine::latestFrame(int nMCB) const {
+    QMutexLocker lk(&m_mutex);
+    return m_latest[nMCB & 7];
+}
+
 bool MeasurementEngine::calcZero(int nMCB) {
     int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
     const int nChn = m_latest[i].size();
     if (nChn == 0 || m_ring[i].isEmpty()) return false;
     const int N = std::min(1024, (int)m_ring[i].size());
@@ -43,6 +57,7 @@ bool MeasurementEngine::calcZero(int nMCB) {
 
 bool MeasurementEngine::calcNoise(int nMCB) {
     int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
     const int nChn = m_latest[i].size();
     if (nChn == 0 || m_count[i] < 200) return false;
     const int N = std::min(2048, (int)m_ring[i].size());
@@ -69,6 +84,7 @@ bool MeasurementEngine::calcNoise(int nMCB) {
 
 QVector<double> MeasurementEngine::rms256(int nMCB) const {
     int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
     QVector<double> out(m_latest[i].size(), 0.0);
     if (m_ring[i].isEmpty()) return out;
     const int N = std::min(256, (int)m_ring[i].size());
@@ -117,6 +133,7 @@ uint32_t MeasurementEngine::beginInl(int points) {
 
 void MeasurementEngine::addInlPoint(int nMCB, int pointIdx) {
     const int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
     const int nChn = m_latest[i].size();
     if (nChn == 0 || m_ring[i].isEmpty()) return;
     const int N = std::min(1024, static_cast<int>(m_ring[i].size()));

@@ -1,9 +1,13 @@
 #pragma once
 #include <QVector>
+#include <QMutex>
 #include <cstdint>
 
 // 纯逻辑测量引擎：维护每板帧环形缓冲，实现 Zero/Noise 计算、显示格式转换、pass/fail。
 // 无 UI 依赖，可用合成数据单测。公式对照 Windows VzeroCal/FWHM_Cal。
+// 线程模型：appendFrame 在库数据回调（工作线程）执行；latestFrame/rms256 由
+// GUI 线程定时调用——m_ring/m_latest/m_count 以 m_mutex 互斥保护，其余结果
+// 数组只在测量完成后经信号通知 GUI 读取，无并发。
 class MeasurementEngine {
 public:
     struct NoiseChan { double fwhm = 0, mean = 0, max = 0, min = 0; };
@@ -37,8 +41,9 @@ public:
     void reset(int nMCB);
     void appendFrame(int nMCB, const QVector<uint32_t>& channels);
 
-    int frameCount(int nMCB) const { return m_count[nMCB & 7]; }
-    const QVector<uint32_t>& latestFrame(int nMCB) const { return m_latest[nMCB & 7]; }
+    int frameCount(int nMCB) const;
+    // 按值返回：内部缓冲被工作线程并发写，引用会在锁外失效
+    QVector<uint32_t> latestFrame(int nMCB) const;
 
     bool calcZero(int nMCB);                 // 写 m_vz[nMCB]，成功 true
     bool calcNoise(int nMCB);                // 写 m_vn[nMCB]，帧数<200 返回 false
@@ -72,6 +77,7 @@ public:
 private:
     Config m_cfg;
     int m_depth = 2048;
+    mutable QMutex m_mutex;                       // 保护 m_ring/m_latest/m_count
     QVector<QVector<uint32_t>> m_ring[MAX_MCB];   // 每板帧环形缓冲（深 m_depth）
     QVector<uint32_t> m_latest[MAX_MCB];
     int m_count[MAX_MCB]{};

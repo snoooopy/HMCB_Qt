@@ -1,5 +1,7 @@
 #include <QtTest/QtTest>
 #include <cmath>
+#include <atomic>
+#include <thread>
 #include "core/MeasurementEngine.h"
 
 class TestMeasurement : public QObject {
@@ -123,6 +125,36 @@ private slots:
         e.clearResults();
         QVERIFY(e.vz(0).isEmpty() && e.vn(0).isEmpty() && e.inl(0).isEmpty());
         QVERIFY(!e.bVzero(0) && !e.bVnoise(0) && !e.bInl(0));
+    }
+
+    void concurrentAppendRead() {
+        // 回归保护：appendFrame 在工作线程跑、latestFrame/rms256 在 GUI 线程读
+        // （GraphView 400ms 定时器）。帧内所有通道填同一标记值，读到的任一帧
+        // 必须整帧一致——无锁并发下 QVector 重分配会出现撕裂/崩溃。
+        MeasurementEngine e;
+        e.setDepth(64);
+        e.reset(0);
+        const int nCh = 512;
+        std::atomic<bool> stop{false};
+        std::thread writer([&] {
+            QVector<uint32_t> ch(nCh);
+            for (uint32_t f = 1; f <= 3000 && !stop.load(); ++f) {
+                ch.fill(f);                       // 帧号做整帧标记
+                e.appendFrame(0, ch);
+            }
+        });
+        bool consistent = true;
+        for (int i = 0; i < 4000; ++i) {
+            const auto fr = e.latestFrame(0);
+            if (!fr.isEmpty())
+                for (uint32_t v : fr)
+                    if (v != fr.first()) { consistent = false; break; }
+            if (i % 8 == 0) (void)e.rms256(0);
+        }
+        stop.store(true);
+        writer.join();
+        QVERIFY2(consistent, "latestFrame 读到撕裂帧：append 与读并发无同步");
+        QVERIFY(e.frameCount(0) > 0);
     }
 };
 
