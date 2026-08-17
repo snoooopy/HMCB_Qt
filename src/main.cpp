@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QDir>
+#include <QTimer>
 #include "core/McbTypes.h"      // Q_DECLARE_METATYPE(Mcb::McbFrame)
 #include "core/IniFile.h"
 #include "core/McbController.h"
@@ -34,6 +35,10 @@ int main(int argc, char** argv) {
 
     // 启动后自动初始化（mock/real 均经 deviceReady 回调）
     ctrl.initializeBackend();
+
+    // 无头冒烟钩子：HMCB_AUTOSTART=1 时就绪后自动开始连续采集
+    if (qEnvironmentVariableIsSet("HMCB_AUTOSTART"))
+        QTimer::singleShot(2500, &ctrl, [&ctrl] { ctrl.start(0); });
 
     return app.exec();
 }
