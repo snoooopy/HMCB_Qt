@@ -2,6 +2,7 @@
 #include <functional>
 #include <cstdint>
 #include <QString>
+#include <QVector>
 #include "core/McbTypes.h"
 #include "MCBCtrl.h"   // DMINFO, WPARAM
 
@@ -30,6 +31,10 @@ public:
     virtual void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt) = 0;
     virtual void setSendAllData(bool on) = 0;
     virtual void setTestMode(bool on) = 0;
+
+    // Phase 3：INL DA 输出 / 每 DM 增益档
+    virtual void setDa(uint32_t da32) = 0;                     // MCB_CMD_AOUTDASET：param=(基线<<16)|电平
+    virtual void setDmRange(const QVector<uint8_t>& range65) = 0; // MCB_CMD_SETRANGE：[0]=板号,[1+j]=DM j 档
 
     // 同步查询（短暂阻塞，经返回值给出）
     virtual uint32_t getMcbNum() = 0;

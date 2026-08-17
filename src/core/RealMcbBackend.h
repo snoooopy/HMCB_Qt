@@ -21,6 +21,9 @@ public:
     void setSendAllData(bool on) override;
     void setTestMode(bool on) override;
 
+    void setDa(uint32_t da32) override;
+    void setDmRange(const QVector<uint8_t>& range65) override;
+
     uint32_t getMcbNum() override;
     bool getDeviceReady() override;
     bool getRunStatus() override;

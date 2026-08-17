@@ -203,8 +203,8 @@ QString DataGridWidget::formatValue(uint32_t v) const {
     case DisplayFormat::Hex:
         return QStringLiteral("0x%1").arg(v, 4, 16, QChar('0')).toUpper();
     case DisplayFormat::mV: {
-        // Phase1 固定系数：12bit ADC，参考 3.3V
-        const double mv = v / 4095.0 * 3300.0;
+        // 20bit 标度：2^20 ↔ 4096 mV（与 Mock/引擎 data2mV 一致）
+        const double mv = v * 4096.0 / 1048576.0;
         return QString::number(mv, 'f', 1);
     }
     case DisplayFormat::Dec:

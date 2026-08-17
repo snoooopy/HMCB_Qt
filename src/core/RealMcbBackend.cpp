@@ -6,6 +6,12 @@
 #ifndef MCB_CMD_TESTMODE
 #define MCB_CMD_TESTMODE 0x8200
 #endif
+#ifndef MCB_CMD_AOUTDASET
+#define MCB_CMD_AOUTDASET 0x8100
+#endif
+#ifndef MCB_CMD_SETRANGE
+#define MCB_CMD_SETRANGE 0x0204
+#endif
 
 RealMcbBackend::StatusCb RealMcbBackend::s_status;
 RealMcbBackend::DataCb   RealMcbBackend::s_data;
@@ -56,6 +62,14 @@ void RealMcbBackend::setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt) {
 
 void RealMcbBackend::setSendAllData(bool on) { SetMCBCommand(MCB_CMD_SETALLDATA, on ? 1 : 0); }
 void RealMcbBackend::setTestMode(bool on)    { SetMCBCommand(MCB_CMD_TESTMODE, on ? 1 : 0); }
+
+void RealMcbBackend::setDa(uint32_t da32) {
+    SetMCBCommand(MCB_CMD_AOUTDASET, static_cast<LPARAM>(da32));
+}
+void RealMcbBackend::setDmRange(const QVector<uint8_t>& range65) {
+    if (range65.size() < 65) return;   // 须停止态发送，否则库报 0x1110
+    SetMCBCommand(MCB_CMD_SETRANGE, reinterpret_cast<LPARAM>(range65.constData()));
+}
 
 uint32_t RealMcbBackend::getMcbNum() {
     UINT n = 0;

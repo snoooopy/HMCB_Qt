@@ -57,6 +57,94 @@ private slots:
                  qPrintable(QString("expected ~5 frames, got %1").arg(frames.load())));
         b.close();
     }
+
+    // ---- Phase 3: DA / 增益仿真 + STOPOK code 语义 ----
+    void daLevelShiftsFrameMean() {
+        MockMcbBackend b;
+        std::atomic<bool> ready{false};
+        b.setStatusCallback([&](WPARAM c, int, uint32_t) { if (c == MCB_DVREADY) ready = true; });
+        b.initialize();
+        QElapsedTimer t; t.start();
+        while (!ready && t.elapsed() < 2000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(ready, "no DVREADY");
+
+        std::atomic<long long> sum{0}; std::atomic<int> cnt{0};
+        b.setDataCallback([&](const Mcb::McbFrame& f) {
+            for (uint32_t v : f.channels) { sum += v; ++cnt; } });
+        auto runMean = [&](uint32_t da) -> double {
+            sum = 0; cnt = 0;
+            b.setDa(da);
+            b.start(6);
+            QElapsedTimer w; w.start();
+            while (b.getRunStatus() && w.elapsed() < 5000)
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+            return cnt > 0 ? double(sum.load()) / cnt.load() : 0.0;
+        };
+        const double m1 = runMean(64400u * 65537u);                    // 摆幅 0
+        const double m2 = runMean((64400u << 16) + (64400u - 64000u)); // 摆幅 16000 码
+        QVERIFY2(m1 > 100000.0, qPrintable(QString("baseline mean too low: %1").arg(m1)));
+        QVERIFY2(m2 > m1 + 30000.0,
+                 qPrintable(QString("DA swing should raise mean: m1=%1 m2=%2").arg(m1).arg(m2)));
+        b.close();
+    }
+
+    void dmRangeLiftLowersMean() {
+        MockMcbBackend b;
+        std::atomic<bool> ready{false};
+        b.setStatusCallback([&](WPARAM c, int, uint32_t) { if (c == MCB_DVREADY) ready = true; });
+        b.initialize();
+        QElapsedTimer t; t.start();
+        while (!ready && t.elapsed() < 2000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(ready, "no DVREADY");
+
+        std::atomic<long long> sum{0}; std::atomic<int> cnt{0};
+        b.setDataCallback([&](const Mcb::McbFrame& f) {
+            for (uint32_t v : f.channels) { sum += v; ++cnt; } });
+        auto runMean = [&]() -> double {
+            sum = 0; cnt = 0;
+            b.start(6);
+            QElapsedTimer w; w.start();
+            while (b.getRunStatus() && w.elapsed() < 5000)
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+            return cnt > 0 ? double(sum.load()) / cnt.load() : 0.0;
+        };
+        b.setDa(0);                       // DA 模型复位
+        QVector<uint8_t> r0(65, 0); b.setDmRange(r0);   // 全 0 档
+        const double m1 = runMean();
+        QVector<uint8_t> r1(65, 1); b.setDmRange(r1);   // 全 1 档
+        const double m2 = runMean();
+        QVERIFY2(m1 > 900000.0, qPrintable(QString("range0 near full scale: %1").arg(m1)));
+        QVERIFY2(m2 < m1 * 0.95,
+                 qPrintable(QString("lift should lower mean: m1=%1 m2=%2").arg(m1).arg(m2)));
+        b.close();
+    }
+
+    void stopokCodeDistinguishesNaturalAndCommand() {
+        MockMcbBackend b;
+        std::atomic<int> lastCode{-1};
+        b.setStatusCallback([&](WPARAM c, int, uint32_t code) {
+            if (c == MCB_STOPOK) lastCode = int(code); });
+        b.initialize();
+        QElapsedTimer t; t.start();
+        while (!b.getDeviceReady() && t.elapsed() < 2000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(b.getDeviceReady(), "no DVREADY");
+
+        b.start(3);
+        t.restart();
+        while (lastCode.load() != 1 && t.elapsed() < 4000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        QCOMPARE(lastCode.load(), 1);     // 采满自然停 code=1
+
+        b.start(0);
+        while (!b.getRunStatus() && t.elapsed() < 2000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        b.stop();                          // 命令停：同步 join 后立即回调
+        QCOMPARE(lastCode.load(), 0);
+        b.close();
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMockBackend)

@@ -27,6 +27,13 @@ public:
     void setSendAllData(bool) override {}
     void setTestMode(bool) override {}
 
+    void setDa(uint32_t da32) override { m_da = da32; m_rangeSet = false; }   // DA 模型接管
+    void setDmRange(const QVector<uint8_t>& range65) override {
+        if (range65.size() < 65) return;
+        m_dmGainRange = range65.mid(1, 64);
+        m_rangeSet = true;                                                   // 增益模型接管
+    }
+
     uint32_t getMcbNum() override { return 1; }
     bool getDeviceReady() override { return m_ready; }
     bool getRunStatus() override { return m_running; }
@@ -46,6 +53,11 @@ private:
 
     int m_range = 7;
     int m_dmNum = 25, m_rowNum = 32, m_colNum = 4;  // 默认几何，可由配置覆盖
+
+    uint32_t m_da = 0;                    // 最近 AOUTDASET 32bit 码
+    QVector<uint8_t> m_dmGainRange;       // 每 DM 档位（0..7）
+    QVector<double> m_dmAmp;              // 每 DM 基础幅度（20bit 域）
+    bool m_rangeSet = false;              // 最后设置的控制生效：setDa 清 / setDmRange 置
 
     void emitStatus(WPARAM cat, int nMCB, uint32_t code) {
         if (m_status) m_status(cat, nMCB, code);
