@@ -6,6 +6,10 @@
 #include "ui/MainWindow.h"
 
 int main(int argc, char** argv) {
+    // 关闭 AT-SPI 无障碍桥（测试软件不需要；否则关窗时刷
+    // qt.accessibility.atspi: Subscription/GetApplicationBusAddress 警告）
+    qputenv("NO_AT_BRIDGE", "1");
+
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("HMCB_Qt"));
 
