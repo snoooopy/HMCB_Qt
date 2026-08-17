@@ -30,6 +30,7 @@ public slots:
     void setRangeMode(int range);
     void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt);
     void measure(int function, uint32_t sampleCount);   // 0 Zero 1 Noise 3 NoiseD
+    void measureInl();     // function=2：INL 多点 DA 扫描
 
     MeasurementEngine* engine() { return m_engine.get(); }
 
@@ -58,5 +59,10 @@ private:
     std::unique_ptr<MeasurementEngine> m_engine;
     int m_measFn = -1;
     bool m_running = false;
-    void handleStopok();      // STOPOK 触发计算 + 通知 UI
+    void handleStopok(bool natural);   // STOPOK：natural=采满自停，命令停=用户收尾
+    void handleInlStop(bool natural);
+    void finalizeInl();
+
+    int m_inlTestPoint = 0;
+    int m_chPerDm = 128;
 };

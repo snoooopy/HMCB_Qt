@@ -4,6 +4,7 @@
 #include "MeasurementEngine.h"
 #include "IniFile.h"
 #include <QDir>
+#include <QTimer>
 #include <QCoreApplication>
 
 McbController::McbController(QObject* parent) : QObject(parent) {
@@ -28,7 +29,12 @@ void McbController::startUp() {
                 .arg(Mcb::statusCategoryStr(category), Mcb::statusCodeStr(code)),
             nMCB);
         if (category == MCB_DVREADY) emit deviceReady();
-        if (category == MCB_STOPOK) handleStopok();
+        // STOPOK 延迟到本对象线程处理：回调来自数据线程，直接重启采集会在
+        // 数据线程内 join 自身（std::system_error: Resource deadlock avoided）。
+        if (category == MCB_STOPOK)
+            QTimer::singleShot(0, this, [this, natural = (code != 0)] {
+                handleStopok(natural);
+            });
     });
 
     // 数据回调（数据线程）：累积到测量引擎，再 emit frameReady（跨线程需 McbFrame metatype）。
@@ -53,6 +59,11 @@ void McbController::startUp() {
         cfg.vndMax      = ini.getDouble("VNOISE", "MAXVND", 0);
         cfg.vndMin      = ini.getDouble("VNOISE", "MINVND", 0);
         cfg.vnFormat    = ini.getInt("VNOISE", "FORMAT", 0);
+        cfg.inlSampleNum = ini.getInt("INL", "SAMPLENUM", 512);
+        cfg.inlDaMax     = ini.getInt("INL", "DAMAX", 16100);
+        cfg.inlPoint     = ini.getInt("INL", "MEASUREPOINT", 12);
+        cfg.inlMax       = ini.getDouble("INL", "MAXINL", 33554432.0) / 1000.0;
+        cfg.diffMax      = ini.getDouble("INL", "MAXDIF", 33554432.0) / 100.0;
         m_engine->applyConfig(cfg);
     }
 }
@@ -87,8 +98,23 @@ void McbController::measure(int function, uint32_t sampleCount) {
     start(static_cast<uint32_t>(N > 0 ? N : (int)sampleCount));
 }
 
-void McbController::handleStopok() {
-    if (m_measFn >= 0 && m_engine) {
+void McbController::measureInl() {
+    if (!m_be || !m_engine) return;
+    const auto& cfg = m_engine->config();
+    m_measFn = 2;
+    m_engine->reset(0);
+    m_engine->beginInl(cfg.inlPoint);
+    m_inlTestPoint = 0;
+    DMINFO d = m_be->getDmInfo(0);
+    m_chPerDm = d.nDMNum > 0 ? d.nAllChnNum / d.nDMNum : 128;
+    m_be->setDa(m_engine->inlDaCode(0));      // 第 1 点：摆幅 0
+    start(static_cast<uint32_t>(cfg.inlSampleNum > 0 ? cfg.inlSampleNum : 512));
+    emit statusMessage(QStringLiteral("[MCB0] INL 测量开始（%1 点）").arg(cfg.inlPoint), 0);
+}
+
+void McbController::handleStopok(bool natural) {
+    if (m_measFn == 2) { handleInlStop(natural); return; }
+    if (m_measFn >= 0 && m_engine) {          // fn 0/1/3：两种停都计算（Phase 2 行为）
         if (m_measFn == 0) m_engine->calcZero(0);
         else               m_engine->calcNoise(0);   // Noise / NoiseD 同算 FWHM
         const int fn = m_measFn;
@@ -96,6 +122,29 @@ void McbController::handleStopok() {
         emit measurementReady(fn);
     }
     if (m_running) { m_running = false; emit runStateChanged(false); }  // 有限自停也通知 UI
+}
+
+void McbController::handleInlStop(bool natural) {
+    if (natural) {
+        m_engine->addInlPoint(0, m_inlTestPoint);
+        ++m_inlTestPoint;
+        if (m_inlTestPoint < m_engine->config().inlPoint) {
+            m_engine->reset(0);               // 清环，保证均值只含本点帧
+            m_be->setDa(m_engine->inlDaCode(m_inlTestPoint));
+            start(static_cast<uint32_t>(m_engine->config().inlSampleNum));
+            return;
+        }
+    }
+    finalizeInl();   // 测完 / 命令停：用已采点收尾（<5 点丢弃）
+}
+
+void McbController::finalizeInl() {
+    const bool ok = m_engine && m_engine->calcInl(0, m_chPerDm);
+    const int fn = m_measFn;
+    m_measFn = -1;
+    if (m_running) { m_running = false; emit runStateChanged(false); }
+    if (ok) emit measurementReady(fn);
+    else emit statusMessage(QStringLiteral("[MCB0] INL 点数不足，已丢弃"), 0);
 }
 
 void McbController::setTrigger(int mode)        { if (m_be) m_be->setTrigger(mode); }
