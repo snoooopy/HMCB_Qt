@@ -1,4 +1,5 @@
 #include "DataGridWidget.h"
+#include <cmath>
 #include <QTableView>
 #include <QStandardItemModel>
 #include <QStandardItem>
@@ -50,10 +51,16 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
     rebuildModel();
     refreshHeader();
 
-    // 双击表头循环显示模式 Raw→Vzero→Vnoise→Raw（对照 OnDblclkListData）
+    // 双击表头：循环显示模式 Raw→Vzero→Vnoise→Inl→Raw；Inl 内再循环 5 子视图
     connect(m_view->horizontalHeader(), &QHeaderView::sectionDoubleClicked,
             this, [this](int) {
-        setDisplayMode(static_cast<DisplayMode>((static_cast<int>(m_mode) + 1) % 3));
+        if (m_mode == DisplayMode::Inl) {
+            m_inlSub = (m_inlSub + 1) % 5;
+            refreshCurrent();
+            refreshHeader();
+        } else {
+            setDisplayMode(static_cast<DisplayMode>((static_cast<int>(m_mode) + 1) % 4));
+        }
     });
 }
 
@@ -73,7 +80,12 @@ void DataGridWidget::showMeasurement(const MeasurementEngine* eng, int nMCB, int
     m_eng = eng;
     m_measMCB = nMCB;
     m_measFn = function;
-    setDisplayMode(function == 0 ? DisplayMode::Vzero : DisplayMode::Vnoise);
+    m_inlSub = 0;
+    m_mode = (function == 0) ? DisplayMode::Vzero
+            : (function == 2) ? DisplayMode::Inl
+            : DisplayMode::Vnoise;
+    refreshHeader();
+    refreshCurrent();
 }
 
 void DataGridWidget::setThresholds(uint32_t lo, uint32_t hi) {
@@ -134,6 +146,10 @@ void DataGridWidget::refreshHeader() {
         m_model->setHeaderData(c + 1, Qt::Horizontal,
                                QStringLiteral("AD%1").arg(start + c));
     m_pageLabel->setText(QStringLiteral("Page %1/%2").arg(m_page + 1).arg(pageCount()));
+    if (m_mode == DisplayMode::Inl) {   // 对照 m_nINLDataType 五态
+        static const char* sub[] = {"INL(permille)", "DIV(%)", "r", "a", "b"};
+        m_pageLabel->setText(m_pageLabel->text() + QStringLiteral("  ") + sub[m_inlSub]);
+    }
 }
 
 void DataGridWidget::refreshFromCache() {
@@ -183,6 +199,25 @@ void DataGridWidget::refreshMeasurement() {
                 value = (cfg.vzFormat == 1) ? z[idx] / cfg.data2mV : z[idx];
                 lo = cfg.vzMin; hi = cfg.vzMax;
                 it->setText(QString::number(value, 'f', cfg.vzFormat == 1 ? 2 : 0));
+            } else if (m_mode == DisplayMode::Inl) {
+                const auto& inlV = m_eng->inl(m_measMCB);
+                const auto& dif  = m_eng->inlDiff(m_measMCB);
+                if (idx >= inlV.size() || idx >= dif.size()) { it->setText(QString()); continue; }
+                const auto& A = m_eng->inlA(m_measMCB);
+                const auto& B = m_eng->inlB(m_measMCB);
+                const auto& R = m_eng->inlR(m_measMCB);
+                switch (m_inlSub) {
+                case 0: it->setText(QString::asprintf("%.3f", inlV[idx] * 1000.0)); break;
+                case 1: it->setText(QString::asprintf("%.1f", (dif[idx] - 1.0) * 100.0)); break;
+                case 2: it->setText(QString::asprintf("%.5f", R.value(idx))); break;
+                case 3: it->setText(QString::asprintf("%.4f", A.value(idx))); break;
+                default: it->setText(QString::asprintf("%.3f", B.value(idx))); break;
+                }
+                const bool good = MeasurementEngine::passFail(inlV[idx] * 1000.0, 0, cfg.inlMax)
+                               && MeasurementEngine::passFail(std::fabs(dif[idx] - 1.0) * 100.0, 0, cfg.diffMax);
+                it->setBackground(good ? pass : fail);
+                it->setForeground(good ? QColor(0, 0, 0) : failTxt);
+                continue;
             } else {
                 const auto& n = m_eng->vn(m_measMCB);
                 if (idx >= n.size()) { it->setText(QString()); continue; }

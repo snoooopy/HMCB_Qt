@@ -17,7 +17,7 @@ class DataGridWidget : public QWidget {
     Q_OBJECT
 public:
     enum class DisplayFormat { Hex, Dec, mV };
-    enum class DisplayMode { Raw, Vzero, Vnoise };
+    enum class DisplayMode { Raw, Vzero, Vnoise, Inl };
 
     explicit DataGridWidget(QWidget* parent = nullptr);
 
@@ -59,6 +59,7 @@ private:
     DisplayMode m_mode = DisplayMode::Raw;
     const MeasurementEngine* m_eng = nullptr;
     int m_measMCB = 0, m_measFn = 0;
+    int m_inlSub = 0;   // Inl 模式 5 子视图：0 INL‰ 1 DIV% 2 r 3 a 4 b
 
     void rebuildModel();
     void refreshFromCache();
