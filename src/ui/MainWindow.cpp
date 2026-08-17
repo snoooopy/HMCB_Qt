@@ -7,6 +7,7 @@
 #include "core/McbController.h"
 #include "core/MeasurementEngine.h"
 #include "core/CsvResultWriter.h"
+#include "ui/GainCalibResultDialog.h"
 #include <QMenuBar>
 #include <QMenu>
 #include <QToolBar>
@@ -99,14 +100,18 @@ void MainWindow::buildMenus() {
     connect(aGraph, &QAction::toggled, this, &MainWindow::onToggleGraph);
     connect(aOne,   &QAction::toggled, this, &MainWindow::onToggleOneModule);
 
-    // 测量（Phase 2 启用：VZero / VNoise / VNoise1(NoiseD)）
+    // 测量（Phase 2：VZero/VNoise/VNoise1；Phase 3：INL/增益自动校准）
     auto* measMenu = menuBar()->addMenu(QStringLiteral("测量(&E)"));
     auto* aVz  = measMenu->addAction(QStringLiteral("VZero"));
     auto* aVn  = measMenu->addAction(QStringLiteral("VNoise"));
     auto* aVnd = measMenu->addAction(QStringLiteral("VNoise1(NoiseD)"));
+    auto* aInl  = measMenu->addAction(QStringLiteral("INL"));
+    auto* aGain = measMenu->addAction(QStringLiteral("增益自动校准"));
     connect(aVz,  &QAction::triggered, this, &MainWindow::onMeasureVzero);
     connect(aVn,  &QAction::triggered, this, &MainWindow::onMeasureVnoise);
     connect(aVnd, &QAction::triggered, this, &MainWindow::onMeasureVnoiseD);
+    connect(aInl,  &QAction::triggered, this, &MainWindow::onMeasureInl);
+    connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
 
     // 工具 —— 后续阶段启用
     menuBar()->addMenu(QStringLiteral("工具(&T)"))->setEnabled(false);
@@ -148,6 +153,7 @@ void MainWindow::wireController() {
     connect(m_ctrl, &McbController::deviceReady,    this, &MainWindow::onDeviceReady);
     connect(m_ctrl, &McbController::runStateChanged, this, &MainWindow::onRunStateChanged);
     connect(m_ctrl, &McbController::measurementReady, this, &MainWindow::onMeasurementReady);
+    connect(m_ctrl, &McbController::gainCalibReady, this, &MainWindow::onGainCalibReady);
 }
 
 // ---- 槽 ----
@@ -170,7 +176,7 @@ void MainWindow::onExit() {
 }
 void MainWindow::onAbout() {
     QMessageBox::about(this, QStringLiteral("关于"),
-        QStringLiteral("HMCB 探测器测试软件 Qt 版\n基于 libmcbctrl\nPhase 2：可视化与基础测量"));
+        QStringLiteral("HMCB 探测器测试软件 Qt 版\n基于 libmcbctrl\nPhase 3：INL 与增益校准"));
 }
 
 void MainWindow::onStatusMessage(const QString& text, int nMCB) {
@@ -222,6 +228,23 @@ void MainWindow::onMeasureVnoise() {
 void MainWindow::onMeasureVnoiseD() {
     if (m_ctrl) { m_ctrl->measure(3, 0); m_log->appendMessage(QStringLiteral("开始 NoiseD 测量…"), 0); }
 }
+void MainWindow::onMeasureInl() {
+    if (m_ctrl) { m_ctrl->measureInl(); m_log->appendMessage(QStringLiteral("开始 INL 测量…"), 0); }
+}
+void MainWindow::onMeasureGain() {
+    if (m_ctrl) { m_ctrl->measureGain(); m_log->appendMessage(QStringLiteral("开始增益自动校准…"), 0); }
+}
+void MainWindow::onGainCalibReady() {
+    m_log->appendMessage(QStringLiteral("增益自动校准完成"), 0);
+    if (!m_ctrl) return;
+    QList<QVector<uint8_t>> gains;
+    QVector<int> counts;
+    const DMINFO d = m_ctrl->getDmInfo(0);
+    counts << qMax(0, int(d.nDMNum));
+    gains << m_ctrl->dmGainValues(0);
+    GainCalibResultDialog dlg(counts, gains, this);
+    dlg.exec();
+}
 
 void MainWindow::onToggleGraph(bool on)     { m_graph->setVisible(on); }
 void MainWindow::onToggleOneModule(bool on) { m_one->setVisible(on); }
@@ -234,30 +257,50 @@ void MainWindow::onMeasurementReady(int function) {
 
 void MainWindow::onSaveResult() {
     if (!m_ctrl || !m_ctrl->engine()) return;
-    const auto& eng = *m_ctrl->engine();
-    if (eng.vz(0).isEmpty() && eng.vn(0).isEmpty()) {
+    auto& eng = *m_ctrl->engine();   // 非 const：保存后要 clearResults()
+    if (!eng.bVzero(0) && !eng.bVnoise(0) && !eng.bInl(0)) {
         QMessageBox::information(this, QStringLiteral("提示"),
-                                 QStringLiteral("尚无测量结果，请先执行 VZero/VNoise。"));
+                                 QStringLiteral("尚无测量结果，请先执行 VZero/VNoise/INL。"));
         return;
     }
-    const QString path = QFileDialog::getSaveFileName(
+    const QString base = QFileDialog::getSaveFileName(
         this, QStringLiteral("保存测量结果"),
-        QStringLiteral("result00.csv"),
-        QStringLiteral("CSV(*.csv);;TXT(*.txt)"));
-    if (path.isEmpty()) return;
-    const bool isCsv = path.toLower().endsWith(QStringLiteral(".csv"));
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, QStringLiteral("错误"),
-                             QStringLiteral("无法写文件：") + path);
-        return;
-    }
-    QTextStream out(&f);
+        QStringLiteral("result00.csv"), QStringLiteral("CSV(*.csv)"));
+    if (base.isEmpty()) return;
+    const QString csvPath = base.toLower().endsWith(QStringLiteral(".csv"))
+                          ? base : base + QStringLiteral(".csv");
+    const QString txtPath = csvPath.left(csvPath.size() - 4) + QStringLiteral(".txt");
+
     CsvResultWriter::Options opt;
     const auto& cfg = eng.config();
     opt.vnFormat = cfg.vnFormat; opt.vzFormat = cfg.vzFormat;
-    opt.adBit = cfg.adBit; opt.data2mV = cfg.data2mV; opt.csv = isCsv;
-    const int n = qMax(eng.vz(0).size(), eng.vn(0).size());
-    CsvResultWriter::write(out, n, eng.vz(0), eng.vn(0), opt);
-    m_log->appendMessage(QStringLiteral("已保存：%1").arg(path), 0);
+    opt.adBit = cfg.adBit; opt.data2mV = cfg.data2mV;
+    opt.hasVz = eng.bVzero(0); opt.hasVn = eng.bVnoise(0); opt.hasInl = eng.bInl(0);
+    opt.inl = eng.inl(0); opt.diff = eng.inlDiff(0);
+    const int n = qMax(qMax(eng.vz(0).size(), eng.vn(0).size()), eng.inl(0).size());
+
+    bool ok = false;
+    {
+        QFile f(csvPath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&f);
+            CsvResultWriter::writeCsv(out, n, eng.vz(0), eng.vn(0), opt);
+            ok = true;
+        }
+    }
+    if (ok) {
+        QFile f(txtPath);   // 忠实复刻：总是 csv+txt 双写（REPORTFORMAT 失效）
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&f);
+            CsvResultWriter::writeTxt(out, n, eng.vz(0), eng.vn(0), opt);
+        }
+    }
+    if (!ok) {
+        QMessageBox::warning(this, QStringLiteral("错误"),
+                             QStringLiteral("无法写文件：") + csvPath);
+        return;
+    }
+    eng.clearResults();                       // 忠实复刻：保存后清空（再存只剩 Channel）
+    m_grid->setDisplayMode(DataGridWidget::DisplayMode::Raw);
+    m_log->appendMessage(QStringLiteral("已保存：%1 + %2（结果已清空）").arg(csvPath, txtPath), 0);
 }

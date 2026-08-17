@@ -33,10 +33,13 @@ private slots:
     void onMeasureVzero();
     void onMeasureVnoise();      // function=1
     void onMeasureVnoiseD();     // function=3
+    void onMeasureInl();         // function=2
+    void onMeasureGain();        // function=6
     void onToggleGraph(bool on);
     void onToggleOneModule(bool on);
     void onSaveResult();
     void onMeasurementReady(int function);
+    void onGainCalibReady();
 
 private:
     void buildMenus();

@@ -34,6 +34,8 @@ set(APP_SOURCES
     ui/GraphView.cpp
     ui/OneModuleView.h
     ui/OneModuleView.cpp
+    ui/GainCalibResultDialog.h
+    ui/GainCalibResultDialog.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES})
