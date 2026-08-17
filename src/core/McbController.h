@@ -31,8 +31,12 @@ public slots:
     void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt);
     void measure(int function, uint32_t sampleCount);   // 0 Zero 1 Noise 3 NoiseD
     void measureInl();     // function=2：INL 多点 DA 扫描
+    void measureGain();    // function=6：增益自动校准（迭代升档 + 写回）
 
     MeasurementEngine* engine() { return m_engine.get(); }
+
+    void setGainWritePaths(const QString& iniPath, const QString& xmlPath);  // 测试注入临时目录
+    QVector<uint8_t> dmGainValues(int nMCB) const;   // 该板各 DM 档位（去板号字节）
 
     // 同步查询
     DMINFO getDmInfo(int nMCB);
@@ -50,8 +54,10 @@ signals:
     void frameReady(int nMCB, Mcb::McbFrame frame);
     // 在线板数量变化（取数时刷新）
     void boardCountChanged(int count);
-    // 测量完成（STOPOK 后算完）：function 0 Zero 1 Noise 3 NoiseD
+    // 测量完成（STOPOK 后算完）：function 0 Zero 1 Noise 2 INL 3 NoiseD
     void measurementReady(int function);
+    // 增益自动校准收敛并写回完成
+    void gainCalibReady();
 
 private:
     std::unique_ptr<IMcbBackend> m_be;
@@ -62,7 +68,14 @@ private:
     void handleStopok(bool natural);   // STOPOK：natural=采满自停，命令停=用户收尾
     void handleInlStop(bool natural);
     void finalizeInl();
+    void handleGainStop(bool natural);
+    void finalizeGain();
+    void applyDmRange(int nMCB);
+    void scheduleGainAcquire();
 
     int m_inlTestPoint = 0;
     int m_chPerDm = 128;
+    int m_gainStep = 0;
+    QVector<uint8_t> m_dmGainBoard[MeasurementEngine::MAX_MCB];   // 65 字节/板：[0]=板号，[1+j]=DM j 档
+    QString m_gainIniPath, m_gainXmlPath;
 };

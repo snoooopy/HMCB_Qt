@@ -33,8 +33,9 @@ qt_add_executable(test_controller test_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/core/RealMcbBackend.cpp
     ${CMAKE_SOURCE_DIR}/src/core/McbTypes.cpp
     ${CMAKE_SOURCE_DIR}/src/core/MeasurementEngine.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/IniFile.cpp)
-target_link_libraries(test_controller PRIVATE Qt6::Test mcbctrl)
+    ${CMAKE_SOURCE_DIR}/src/core/IniFile.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/XmlGainWriter.cpp)
+target_link_libraries(test_controller PRIVATE Qt6::Test Qt6::Xml mcbctrl)
 target_include_directories(test_controller PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME controller COMMAND test_controller)
 

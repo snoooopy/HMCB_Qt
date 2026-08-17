@@ -3,9 +3,11 @@
 #include "RealMcbBackend.h"
 #include "MeasurementEngine.h"
 #include "IniFile.h"
+#include "XmlGainWriter.h"
 #include <QDir>
 #include <QTimer>
 #include <QCoreApplication>
+#include <cmath>
 
 McbController::McbController(QObject* parent) : QObject(parent) {
     m_engine = std::make_unique<MeasurementEngine>();
@@ -114,6 +116,7 @@ void McbController::measureInl() {
 
 void McbController::handleStopok(bool natural) {
     if (m_measFn == 2) { handleInlStop(natural); return; }
+    if (m_measFn == 6) { handleGainStop(natural); return; }
     if (m_measFn >= 0 && m_engine) {          // fn 0/1/3：两种停都计算（Phase 2 行为）
         if (m_measFn == 0) m_engine->calcZero(0);
         else               m_engine->calcNoise(0);   // Noise / NoiseD 同算 FWHM
@@ -145,6 +148,103 @@ void McbController::finalizeInl() {
     if (m_running) { m_running = false; emit runStateChanged(false); }
     if (ok) emit measurementReady(fn);
     else emit statusMessage(QStringLiteral("[MCB0] INL 点数不足，已丢弃"), 0);
+}
+
+// ---- 增益自动校准（对照 OnGainAutoCalib / VGainValueAsVzeroAnalysisCal:2699）----
+
+void McbController::measureGain() {
+    if (!m_be || !m_engine) return;
+    m_measFn = 6;
+    m_gainStep = 0;
+    m_dmGainBoard[0] = QVector<uint8_t>(65, 0);   // 全 DM 0 档起步（Windows 硬编码）
+    m_engine->reset(0);
+    applyDmRange(0);
+    emit statusMessage(QStringLiteral("[MCB0] 增益自动校准开始"), 0);
+    scheduleGainAcquire();
+}
+
+void McbController::applyDmRange(int nMCB) {
+    Q_UNUSED(nMCB);
+    if (m_be) m_be->setDmRange(m_dmGainBoard[0]);
+}
+
+void McbController::scheduleGainAcquire() {
+    const int delay = m_engine->config().gainDelayMs > 0
+                    ? m_engine->config().gainDelayMs : 2000;   // Windows Sleep(2000)
+    QTimer::singleShot(delay, this, [this]() {
+        if (m_measFn == 6 && m_be)
+            start(static_cast<uint32_t>(m_engine->config().gainFrames));
+    });
+}
+
+void McbController::handleGainStop(bool natural) {
+    if (!natural) {   // 用户中止：不写回
+        m_measFn = -1;
+        if (m_running) { m_running = false; emit runStateChanged(false); }
+        emit statusMessage(QStringLiteral("[MCB0] 增益校准被中止，未写回"), 0);
+        return;
+    }
+    const auto& cfg = m_engine->config();
+    m_engine->calcZero(0);                       // 复用均值（对照 VGainValueAsVzeroAnalysisCal）
+    const double th = cfg.gainThreshold * std::pow(2.0, cfg.adBit);
+    const auto& z = m_engine->vz(0);
+    DMINFO d = m_be->getDmInfo(0);
+    const int chPerDm = d.nDMNum > 0 ? d.nAllChnNum / d.nDMNum : 128;
+    bool raised = false;
+    for (int ch = 0; ch < z.size(); ++ch) {
+        if (z[ch] > th) {                        // 超阈通道 → 所属 DM 档+1（只升不降，饱和 7）
+            const int dm = ch / chPerDm;
+            if (dm < 64 && m_dmGainBoard[0][1 + dm] < 7) {
+                ++m_dmGainBoard[0][1 + dm];
+                raised = true;
+            }
+        }
+    }
+    if (raised && m_gainStep + 1 < cfg.gainMaxSteps) {
+        ++m_gainStep;
+        applyDmRange(0);
+        emit statusMessage(QStringLiteral("[MCB0] 增益升档（第 %1 轮）").arg(m_gainStep), 0);
+        scheduleGainAcquire();
+        return;
+    }
+    finalizeGain();
+}
+
+void McbController::finalizeGain() {
+    // ini + XML 双写（对照 WriteGainValueToConfigureFile:2829-2897）
+    DMINFO d = m_be ? m_be->getDmInfo(0) : DMINFO{};
+    const int nDm = d.nDMNum > 0 ? d.nDMNum
+                  : (m_dmGainBoard[0].isEmpty() ? 0 : m_dmGainBoard[0].size() - 1);
+    IniFile ini;
+    ini.setFileName(m_gainIniPath.isEmpty()
+        ? QCoreApplication::applicationDirPath() + QStringLiteral("/config/MCBCtrl.ini")
+        : m_gainIniPath);
+    ini.readAll();                                // 文件/节不存在则创建
+    QVector<uint8_t> gains(nDm);
+    for (int j = 0; j < nDm; ++j) {
+        ini.setInt(QStringLiteral("RANGE0"), QStringLiteral("MCB0DM%1").arg(j),
+                   m_dmGainBoard[0][1 + j]);
+        gains[j] = m_dmGainBoard[0][1 + j];
+    }
+    ini.writeAll();
+    const QString xmlPath = m_gainXmlPath.isEmpty()
+        ? QCoreApplication::applicationDirPath() + QStringLiteral("/DIASConfig.xml")
+        : m_gainXmlPath;
+    if (!XmlGainWriter::write(xmlPath, 0, gains))
+        emit statusMessage(QStringLiteral("[MCB0] DIASConfig.xml 写入失败"), 0);
+    m_measFn = -1;
+    if (m_running) { m_running = false; emit runStateChanged(false); }
+    emit gainCalibReady();
+}
+
+void McbController::setGainWritePaths(const QString& iniPath, const QString& xmlPath) {
+    m_gainIniPath = iniPath;
+    m_gainXmlPath = xmlPath;
+}
+
+QVector<uint8_t> McbController::dmGainValues(int nMCB) const {
+    const auto& b = m_dmGainBoard[nMCB & 7];
+    return b.isEmpty() ? QVector<uint8_t>() : b.mid(1);
 }
 
 void McbController::setTrigger(int mode)        { if (m_be) m_be->setTrigger(mode); }

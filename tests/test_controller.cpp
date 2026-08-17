@@ -1,9 +1,12 @@
 #include <QtTest/QtTest>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QTemporaryDir>
+#include <QFile>
 #include <atomic>
 #include "core/McbController.h"
 #include "core/McbTypes.h"
+#include "core/IniFile.h"
 
 class TestController : public QObject {
     Q_OBJECT
@@ -87,6 +90,43 @@ private slots:
         QVERIFY(c.engine()->bInl(0));
         QVERIFY2(c.engine()->inl(0).size() > 0, "INL result empty");
         QVERIFY(c.engine()->inlR(0)[0] > 0.9);    // Mock 近线性 → r 高
+        c.shutdown();
+    }
+
+    void gainCalibrationConvergesAndWritesBack() {
+        qRegisterMetaType<Mcb::McbFrame>("Mcb::McbFrame");
+        McbController c; c.setBackendMode("mock"); c.startUp();
+        std::atomic<bool> ready{false};
+        connect(&c, &McbController::deviceReady, this, [&]{ ready = true; });
+        c.initializeBackend();
+        QElapsedTimer t; t.start();
+        while (!ready && t.elapsed() < 2000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(ready, "no deviceReady within 2s");
+
+        QTemporaryDir dir;
+        c.setGainWritePaths(dir.path() + "/MCBCtrl.ini", dir.path() + "/DIASConfig.xml");
+        MeasurementEngine::Config cfg = c.engine()->config();
+        cfg.gainFrames = 5; cfg.gainDelayMs = 10;   // 加速测试
+        c.engine()->applyConfig(cfg);
+
+        std::atomic<bool> done{false};
+        connect(&c, &McbController::gainCalibReady, this, [&]{ done = true; });
+        c.measureGain();
+        t.restart();
+        while (!done && t.elapsed() < 15000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(done, "no gainCalibReady within 15s");
+
+        IniFile ini;
+        ini.setFileName(dir.path() + "/MCBCtrl.ini");
+        QVERIFY(ini.readAll());
+        QVERIFY2(ini.getInt("RANGE0", "MCB0DM0", -1) >= 1,
+                 qPrintable(QString("DM0 gain=%1").arg(ini.getInt("RANGE0", "MCB0DM0", -1))));
+        QVERIFY2(ini.getInt("RANGE0", "MCB0DM2", -1) >= 2,
+                 qPrintable(QString("DM2 gain=%1").arg(ini.getInt("RANGE0", "MCB0DM2", -1))));
+        QFile x(dir.path() + "/DIASConfig.xml");
+        QVERIFY2(x.open(QIODevice::ReadOnly), "DIASConfig.xml missing");
+        QVERIFY(QString::fromUtf8(x.readAll()).contains("MCB0_RANGE"));
+        QVERIFY(c.dmGainValues(0).size() >= 25);
         c.shutdown();
     }
 };
