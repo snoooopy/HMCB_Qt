@@ -9,7 +9,12 @@ bool XmlGainWriter::write(const QString& path, int nMCB, const QVector<uint8_t>&
     QDomDocument doc;
     QFile f(path);
     if (f.exists() && f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        // Qt 6.5+ setContent 返回 ParseResult（不能隐式转 bool），6.4 返回 bool
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+        const bool ok = static_cast<bool>(doc.setContent(&f));
+#else
         const bool ok = doc.setContent(&f);
+#endif
         f.close();
         if (!ok) return false;
     }
