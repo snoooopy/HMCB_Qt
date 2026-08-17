@@ -8,6 +8,7 @@
 class QTableView;
 class QStandardItemModel;
 class QLabel;
+class QTimer;
 
 // 中央数据网格：QTableView 展示一帧通道数据。
 // 列 = 当前页的若干 AD 模块（MAX_MCBADNUM=64，每页 10 个，共 7 页），
@@ -55,6 +56,11 @@ private:
 
     QVector<uint32_t> m_last;
     int m_lastMCB = -1;
+    // 原始帧刷新节流：连续采集 10fps×1280 格全量 setText 会让 GUI 线程饱和
+    // （曾致"开始采集后无响应"），改为脏标记 + 250ms 合并刷新
+    QTimer* m_flushTimer = nullptr;
+    bool m_dirty = false;
+    static constexpr int kFlushMs = 250;
 
     DisplayMode m_mode = DisplayMode::Raw;
     const MeasurementEngine* m_eng = nullptr;

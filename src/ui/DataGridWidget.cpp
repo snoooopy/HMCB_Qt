@@ -11,6 +11,7 @@
 #include <QHeaderView>
 #include <QBrush>
 #include <QColor>
+#include <QTimer>
 
 DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
     auto* lay = new QVBoxLayout(this);
@@ -44,9 +45,19 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
     m_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_model = new QStandardItemModel(this);
     m_view->setModel(m_model);
-    m_view->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    // 列宽一次性自适应后转 Interactive：ResizeToContents 模式下每个
+    // dataChanged 都整列重算宽度（文本测量），帧刷新时会饱和 GUI 线程
+    m_view->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_view->verticalHeader()->setVisible(false);
     lay->addWidget(m_view, 1);
+
+    // 脏帧合并刷新：首帧启动定时器，250ms 后刷一次（期间新帧只标脏）
+    m_flushTimer = new QTimer(this);
+    m_flushTimer->setSingleShot(true);
+    m_flushTimer->setInterval(kFlushMs);
+    connect(m_flushTimer, &QTimer::timeout, this, [this] {
+        if (m_dirty) { m_dirty = false; refreshFromCache(); }
+    });
 
     rebuildModel();
     refreshHeader();
@@ -119,7 +130,11 @@ void DataGridWidget::prevPage() { setPage(m_page - 1); }
 void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
     m_last = frame.channels;
     m_lastMCB = nMCB;
-    if (m_mode == DisplayMode::Raw) refreshFromCache();   // 测量模式下不被新帧覆盖
+    // 测量模式下不被新帧覆盖；Raw 模式节流合并刷新（见 m_flushTimer）
+    if (m_mode == DisplayMode::Raw) {
+        m_dirty = true;
+        if (!m_flushTimer->isActive()) m_flushTimer->start();
+    }
 }
 
 void DataGridWidget::rebuildModel() {
@@ -137,6 +152,8 @@ void DataGridWidget::rebuildModel() {
             m_model->setItem(r, c + 1, it);
         }
     }
+    // 一次性列宽自适应（代替 ResizeToContents 常驻模式，见构造函数注释）
+    m_view->resizeColumnsToContents();
 }
 
 void DataGridWidget::refreshHeader() {
