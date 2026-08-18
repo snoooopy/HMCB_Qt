@@ -29,6 +29,8 @@ public slots:
     void setTrigger(int mode);
     void setRangeMode(int range);
     void setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt);
+    void setTestMode(bool on);        // TEST 模式（看内置测试图案）
+    void setSendAllData(bool on);     // 发送全部数据模式
     void measure(int function, uint32_t sampleCount);   // 0 Zero 1 Noise 3 NoiseD
     void measureInl();     // function=2：INL 多点 DA 扫描
     void measureGain();    // function=6：增益自动校准（迭代升档 + 写回）

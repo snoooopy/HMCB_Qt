@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QToolBar>
 #include <QAction>
+#include <QActionGroup>
 #include <QStatusBar>
 #include <QLabel>
 #include <QSplitter>
@@ -24,7 +25,7 @@
 
 MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     : QMainWindow(parent), m_ctrl(ctrl) {
-    setWindowTitle(QStringLiteral("HMCB 探测器测试软件 (Qt)"));
+    setWindowTitle(QStringLiteral("HM MCB Test Program"));
     resize(1280, 800);
 
     // ---- 中央区：上=[网格 | 侧栏]，下=消息日志 ----
@@ -56,6 +57,7 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
         m_one->setEngine(m_ctrl->engine());
     }
 
+    buildActions();
     buildMenus();
     buildToolBar();
     buildStatusBar();
@@ -72,67 +74,209 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     if (m_ctrl) wireController();
 }
 
+void MainWindow::buildActions() {
+    // 共享动作：菜单与工具栏挂同一 QAction（对应 MFC 同一命令 ID，勾选态自动同步）
+    m_aSaveResult = new QAction(QIcon(QStringLiteral(":/tb/icons/tb_save_result.png")),
+                                QStringLiteral("Save Measuring Result(&S)"), this);
+    connect(m_aSaveResult, &QAction::triggered, this, &MainWindow::onSaveResult);
+
+    // Trigger 三选一（互斥，默认 Inner=0 内触发）
+    auto* trigGroup = new QActionGroup(this);
+    // 触发动作直接挂工具栏（.rc: START/TRIGIN/TRIGOUT/STOP），必须带图标，
+    // 否则 IconOnly 模式下 Qt 退化为文字按钮（Toolbar.bmp 无 cascade 位图，
+    // Cascade 仅在菜单中，保持无图标）
+    m_aTrigInner = trigGroup->addAction(QIcon(QStringLiteral(":/tb/icons/tb_trig_inner.png")),
+                                        QStringLiteral("Inner"));
+    m_aTrigOuter = trigGroup->addAction(QIcon(QStringLiteral(":/tb/icons/tb_trig_outer.png")),
+                                        QStringLiteral("Outer"));
+    m_aTrigCascade = trigGroup->addAction(QStringLiteral("Cascade"));
+    for (auto* a : {m_aTrigInner, m_aTrigOuter, m_aTrigCascade}) {
+        a->setCheckable(true);
+        addAction(a);
+    }
+    m_aTrigInner->setChecked(true);
+    connect(m_aTrigInner, &QAction::triggered, this, [this] { m_ctrl->setTrigger(0); });
+    connect(m_aTrigOuter, &QAction::triggered, this, [this] { m_ctrl->setTrigger(1); });
+    connect(m_aTrigCascade, &QAction::triggered, this, [this] { m_ctrl->setTrigger(2); });
+
+    // 数据格式三选一（默认 DEC）
+    auto* fmtGroup = new QActionGroup(this);
+    m_aHex = fmtGroup->addAction(QIcon(QStringLiteral(":/tb/icons/tb_hex.png")),
+                                 QStringLiteral("HEX"));
+    m_aDec = fmtGroup->addAction(QIcon(QStringLiteral(":/tb/icons/tb_dec.png")),
+                                 QStringLiteral("DEC"));
+    m_aMv  = fmtGroup->addAction(QIcon(QStringLiteral(":/tb/icons/tb_mv.png")),
+                                 QStringLiteral("mV"));
+    for (auto* a : {m_aHex, m_aDec, m_aMv}) {
+        a->setCheckable(true);
+        addAction(a);
+    }
+    m_aDec->setChecked(true);
+    connect(m_aHex, &QAction::triggered, this, [this] { m_grid->setDisplayFormat(DataGridWidget::DisplayFormat::Hex); });
+    connect(m_aDec, &QAction::triggered, this, [this] { m_grid->setDisplayFormat(DataGridWidget::DisplayFormat::Dec); });
+    connect(m_aMv,  &QAction::triggered, this, [this] { m_grid->setDisplayFormat(DataGridWidget::DisplayFormat::mV); });
+
+    // 视图开关
+    m_aGraph = new QAction(QIcon(QStringLiteral(":/tb/icons/tb_graph.png")),
+                           QStringLiteral("Graph"), this);
+    m_aGraph->setCheckable(true);
+    addAction(m_aGraph);
+    connect(m_aGraph, &QAction::toggled, this, [this](bool on) { m_graph->setVisible(on); });
+
+    m_aOneModule = new QAction(QIcon(QStringLiteral(":/tb/icons/tb_one_module.png")),
+                               QStringLiteral("One Module"), this);
+    m_aOneModule->setCheckable(true);
+    addAction(m_aOneModule);
+    connect(m_aOneModule, &QAction::toggled, this, [this](bool on) { m_one->setVisible(on); });
+
+    // 模式开关
+    m_aTestMode = new QAction(QIcon(QStringLiteral(":/tb/icons/tb_test_mode.png")),
+                              QStringLiteral("TEST mode"), this);
+    m_aTestMode->setCheckable(true);
+    addAction(m_aTestMode);
+    connect(m_aTestMode, &QAction::toggled, this, [this](bool on) { m_ctrl->setTestMode(on); });
+
+    m_aSendAll = new QAction(QStringLiteral("Send All Data mode"), this);
+    m_aSendAll->setCheckable(true);
+    addAction(m_aSendAll);
+    connect(m_aSendAll, &QAction::toggled, this, [this](bool on) { m_ctrl->setSendAllData(on); });
+
+    // 翻页
+    m_aPrevPage = new QAction(QIcon(QStringLiteral(":/tb/icons/tb_prev_page.png")),
+                              QStringLiteral("Previous Page"), this);
+    addAction(m_aPrevPage);
+    connect(m_aPrevPage, &QAction::triggered, this, [this] { m_grid->prevPage(); });
+
+    m_aNextPage = new QAction(QIcon(QStringLiteral(":/tb/icons/tb_next_page.png")),
+                              QStringLiteral("Next Page"), this);
+    addAction(m_aNextPage);
+    connect(m_aNextPage, &QAction::triggered, this, [this] { m_grid->nextPage(); });
+}
+
 void MainWindow::buildMenus() {
-    // 文件
-    auto* fileMenu = menuBar()->addMenu(QStringLiteral("文件(&F)"));
-    auto* aSave = fileMenu->addAction(QStringLiteral("保存测量结果(&S)"));
-    connect(aSave, &QAction::triggered, this, &MainWindow::onSaveResult);
-    auto* aExit = fileMenu->addAction(QStringLiteral("退出(&X)"));
+    // ===== 严格对照 MCB_TEST.rc IDR_MAINFRAME（文字/顺序/分隔线）=====
+    // File(&F)
+    auto* fileMenu = menuBar()->addMenu(QStringLiteral("File(&F)"));
+    fileMenu->addAction(m_aSaveResult);
+    fileMenu->addAction(QStringLiteral("Save Origin Data(&D)"))->setEnabled(false);      // Phase 4
+    fileMenu->addAction(QStringLiteral("Save Image Data(&I)"))->setEnabled(false);       // Phase 4
+    fileMenu->addAction(QStringLiteral("Save Position Code Data(&C)"))->setEnabled(false); // Phase 4
+    fileMenu->addSeparator();
+    auto* aExit = fileMenu->addAction(QStringLiteral("Exit(&X)"));
     connect(aExit, &QAction::triggered, this, &MainWindow::onExit);
 
-    // MCB 控制
-    auto* ctrlMenu = menuBar()->addMenu(QStringLiteral("MCB控制(&M)"));
-    auto* aConn = ctrlMenu->addAction(QStringLiteral("连接/初始化(&C)"));
-    auto* aReconn = ctrlMenu->addAction(QStringLiteral("重连(&R)"));
-    ctrlMenu->addSeparator();
-    auto* aStart = ctrlMenu->addAction(QStringLiteral("开始采集(&S)"));
-    auto* aStop  = ctrlMenu->addAction(QStringLiteral("停止采集(&T)"));
-    connect(aConn,   &QAction::triggered, this, &MainWindow::onConnect);
+    // MCB Control(&M)
+    auto* ctrlMenu = menuBar()->addMenu(QStringLiteral("MCB Control(&M)"));
+    auto* aStart = ctrlMenu->addAction(QStringLiteral("Start(&S)"));
+    auto* aStop  = ctrlMenu->addAction(QStringLiteral("Stop(&P)"));
+    connect(aStart, &QAction::triggered, this, &MainWindow::onStart);
+    connect(aStop,  &QAction::triggered, this, &MainWindow::onStop);
+    ctrlMenu->addMenu(QStringLiteral("Trigger"))->addActions(
+        {m_aTrigInner, m_aTrigOuter, m_aTrigCascade});
+    auto* aReconn = ctrlMenu->addAction(QStringLiteral("Reconnect(&C)"));
     connect(aReconn, &QAction::triggered, this, &MainWindow::onReconnect);
-    connect(aStart,  &QAction::triggered, this, &MainWindow::onStart);
-    connect(aStop,   &QAction::triggered, this, &MainWindow::onStop);
 
-    // 数据视图（Phase 2 启用：波形 / 单模块）
-    auto* viewMenu = menuBar()->addMenu(QStringLiteral("数据视图(&V)"));
-    auto* aGraph = viewMenu->addAction(QStringLiteral("波形(&G)"));
-    auto* aOne   = viewMenu->addAction(QStringLiteral("单模块(&M)"));
-    aGraph->setCheckable(true); aOne->setCheckable(true);
-    connect(aGraph, &QAction::toggled, this, &MainWindow::onToggleGraph);
-    connect(aOne,   &QAction::toggled, this, &MainWindow::onToggleOneModule);
+    // Data View(&D)
+    auto* viewMenu = menuBar()->addMenu(QStringLiteral("Data View(&D)"));
+    viewMenu->addAction(m_aPrevPage);
+    viewMenu->addAction(m_aNextPage);
+    viewMenu->addSeparator();
+    viewMenu->addMenu(QStringLiteral("Data Format"))->addActions({m_aHex, m_aDec, m_aMv});
+    viewMenu->addAction(m_aGraph);
+    viewMenu->addAction(QStringLiteral("NDet_Plot"))->setEnabled(false);   // Phase 4
+    viewMenu->addAction(m_aOneModule);
 
-    // 测量（Phase 2：VZero/VNoise/VNoise1；Phase 3：INL/增益自动校准）
-    auto* measMenu = menuBar()->addMenu(QStringLiteral("测量(&E)"));
-    auto* aVz  = measMenu->addAction(QStringLiteral("VZero"));
-    auto* aVn  = measMenu->addAction(QStringLiteral("VNoise"));
-    auto* aVnd = measMenu->addAction(QStringLiteral("VNoise1(NoiseD)"));
-    auto* aInl  = measMenu->addAction(QStringLiteral("INL"));
-    auto* aGain = measMenu->addAction(QStringLiteral("增益自动校准"));
+    // Measure(&M)
+    auto* measMenu = menuBar()->addMenu(QStringLiteral("Measure(&M)"));
+    auto* aVz  = measMenu->addAction(QStringLiteral("Zero"));
+    auto* aVn  = measMenu->addAction(QStringLiteral("Noise"));
+    auto* aVnd = measMenu->addAction(QStringLiteral("Noise(DET)"));
+    auto* aInl = measMenu->addAction(QStringLiteral("INL"));
     connect(aVz,  &QAction::triggered, this, &MainWindow::onMeasureVzero);
     connect(aVn,  &QAction::triggered, this, &MainWindow::onMeasureVnoise);
     connect(aVnd, &QAction::triggered, this, &MainWindow::onMeasureVnoiseD);
-    connect(aInl,  &QAction::triggered, this, &MainWindow::onMeasureInl);
+    connect(aInl, &QAction::triggered, this, &MainWindow::onMeasureInl);
+    measMenu->addAction(QStringLiteral("Diversity in X Ray"))->setEnabled(false);  // Phase 4
+    auto* aGain = measMenu->addAction(QStringLiteral("Gain automatic calibration"));
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
+    measMenu->addSeparator();
+    measMenu->addAction(m_aTestMode);
+    measMenu->addAction(QStringLiteral("Set DM Range"))->setEnabled(false);         // Phase 4
+    measMenu->addAction(QStringLiteral("Set DM 2 Types Range"))->setEnabled(false); // Phase 4
+    measMenu->addAction(m_aSendAll);
+    measMenu->addAction(QStringLiteral("SetPOTMT"))->setEnabled(false);             // Phase 4
+    measMenu->addAction(QStringLiteral("Set INTT"))->setEnabled(false);             // Phase 4
+    measMenu->addSeparator();
+    // .rc 中 "&&" 转义为显示 "&"
+    measMenu->addAction(QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
+        ->setEnabled(false);                                                        // Phase 4
+    measMenu->addAction(QStringLiteral("FNDM DualEnergy Mode"))->setEnabled(false); // Phase 4
+    auto* fnsMenu = measMenu->addMenu(QStringLiteral("Fast Neutron Source Type"));
+    fnsMenu->addAction(QStringLiteral("Pulsed"))->setEnabled(false);                // Phase 4
+    fnsMenu->addAction(QStringLiteral("Continued"))->setEnabled(false);             // Phase 4
 
-    // 工具 —— 后续阶段启用
-    menuBar()->addMenu(QStringLiteral("工具(&T)"))->setEnabled(false);
+    // Tools（全部 Phase 4）
+    auto* toolsMenu = menuBar()->addMenu(QStringLiteral("Tools"));
+    toolsMenu->addAction(QStringLiteral("Set New IP"))->setEnabled(false);
+    toolsMenu->addAction(QStringLiteral("Dump EEPROM Key Data"))->setEnabled(false);
+    toolsMenu->addAction(QStringLiteral("Dump All ECS Registers"))->setEnabled(false);
 
-    // 帮助
-    auto* helpMenu = menuBar()->addMenu(QStringLiteral("帮助(&H)"));
-    auto* aAbout = helpMenu->addAction(QStringLiteral("关于(&A)"));
+    // Help(&H)
+    auto* helpMenu = menuBar()->addMenu(QStringLiteral("Help(&H)"));
+    auto* aAbout = helpMenu->addAction(QStringLiteral("About HMCB_TEST(&A)..."));
     connect(aAbout, &QAction::triggered, this, &MainWindow::onAbout);
 }
 
 void MainWindow::buildToolBar() {
+    // ===== 严格对照 MCB_TEST.rc IDR_MAINFRAME TOOLBAR（按钮/顺序/分隔线）=====
     auto* tb = addToolBar(QStringLiteral("main"));
     tb->setMovable(false);
-    auto* aConn  = tb->addAction(QStringLiteral("连接"));
-    auto* aStart = tb->addAction(QStringLiteral("开始"));
-    auto* aStop  = tb->addAction(QStringLiteral("停止"));
-    auto* aExit  = tb->addAction(QStringLiteral("退出"));
-    connect(aConn,  &QAction::triggered, this, &MainWindow::onConnect);
+    tb->setIconSize(QSize(19, 17));       // MFC 工具栏原始尺寸 19x17
+    tb->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    auto IC = [](const char* n) { return QIcon(QStringLiteral(":/tb/icons/tb_") + n + ".png"); };
+
+    tb->addAction(m_aSaveResult);
+    tb->addSeparator();
+    auto* aSaveImg = tb->addAction(IC("save_image"), QStringLiteral("Save Image Data"));
+    aSaveImg->setEnabled(false);          // Phase 4
+    auto* aSaveOrigin = tb->addAction(IC("save_origin"), QStringLiteral("Save Origin Data"));
+    aSaveOrigin->setEnabled(false);       // Phase 4
+    tb->addSeparator();
+    auto* aStart = tb->addAction(IC("start"), QStringLiteral("Start"));
     connect(aStart, &QAction::triggered, this, &MainWindow::onStart);
-    connect(aStop,  &QAction::triggered, this, &MainWindow::onStop);
-    connect(aExit,  &QAction::triggered, this, &MainWindow::onExit);
+    tb->addAction(m_aTrigInner);
+    tb->addAction(m_aTrigOuter);
+    auto* aStop = tb->addAction(IC("stop"), QStringLiteral("Stop"));
+    connect(aStop, &QAction::triggered, this, &MainWindow::onStop);
+    tb->addSeparator();
+    auto* aVz  = tb->addAction(IC("zero"), QStringLiteral("Zero"));
+    connect(aVz, &QAction::triggered, this, &MainWindow::onMeasureVzero);
+    auto* aVn  = tb->addAction(IC("noise"), QStringLiteral("Noise"));
+    connect(aVn, &QAction::triggered, this, &MainWindow::onMeasureVnoise);
+    auto* aVnd = tb->addAction(IC("noise_det"), QStringLiteral("Noise(DET)"));
+    connect(aVnd, &QAction::triggered, this, &MainWindow::onMeasureVnoiseD);
+    auto* aInl = tb->addAction(IC("inl"), QStringLiteral("INL"));
+    connect(aInl, &QAction::triggered, this, &MainWindow::onMeasureInl);
+    tb->addAction(IC("xdif"), QStringLiteral("Diversity in X Ray"))->setEnabled(false); // Phase 4
+    auto* aGain = tb->addAction(IC("gain_calib"), QStringLiteral("Gain automatic calibration"));
+    connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
+    tb->addAction(m_aTestMode);
+    tb->addAction(IC("fndm"), QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
+        ->setEnabled(false);                                                              // Phase 4
+    tb->addAction(IC("ndet"), QStringLiteral("NDet_Plot"))->setEnabled(false);            // Phase 4
+    tb->addSeparator();
+    tb->addAction(m_aOneModule);
+    tb->addSeparator();
+    tb->addAction(m_aPrevPage);
+    tb->addAction(m_aNextPage);
+    tb->addSeparator();
+    tb->addAction(m_aHex);
+    tb->addAction(m_aDec);
+    tb->addAction(m_aMv);
+    tb->addAction(m_aGraph);
+    tb->addSeparator();
+    auto* aExit = tb->addAction(IC("exit"), QStringLiteral("Exit"));
+    connect(aExit, &QAction::triggered, this, &MainWindow::onExit);
 }
 
 void MainWindow::buildStatusBar() {
@@ -157,7 +301,6 @@ void MainWindow::wireController() {
 }
 
 // ---- 槽 ----
-void MainWindow::onConnect()   { if (m_ctrl) m_ctrl->initializeBackend(); }
 void MainWindow::onReconnect() {
     if (!m_ctrl) return;
     m_ctrl->stop();
@@ -175,8 +318,9 @@ void MainWindow::onExit() {
     close();
 }
 void MainWindow::onAbout() {
-    QMessageBox::about(this, QStringLiteral("关于"),
-        QStringLiteral("HMCB 探测器测试软件 Qt 版\n基于 libmcbctrl\nPhase 3：INL 与增益校准"));
+    // 对照 IDD_ABOUTBOX（HMCB_TEST / Copyright (C) 2023~2033）
+    QMessageBox::about(this, QStringLiteral("About HMCB_TEST"),
+        QStringLiteral("HMCB_TEST (Qt port)\nCopyright (C) 2023~2033\n基于 libmcbctrl | Phase 3"));
 }
 
 void MainWindow::onStatusMessage(const QString& text, int nMCB) {
@@ -245,9 +389,6 @@ void MainWindow::onGainCalibReady() {
     GainCalibResultDialog dlg(counts, gains, this);
     dlg.exec();
 }
-
-void MainWindow::onToggleGraph(bool on)     { m_graph->setVisible(on); }
-void MainWindow::onToggleOneModule(bool on) { m_one->setVisible(on); }
 
 void MainWindow::onMeasurementReady(int function) {
     m_log->appendMessage(QStringLiteral("测量完成 (function=%1)").arg(function), 0);

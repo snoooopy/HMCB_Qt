@@ -20,6 +20,7 @@ QMAKE_RPATHDIR += $$LIBDIR   # 运行期定位 .so（与 CMake 的 RPATH 等价�
 # ---- 自动收集源码（递归 src/）----
 SOURCES += $$files($$PWD/src/*.cpp, true)
 HEADERS += $$files($$PWD/src/*.h, true)
+RESOURCES += $$PWD/src/ui/app.qrc
 
 TARGET = HMCB_Qt
 TEMPLATE = app

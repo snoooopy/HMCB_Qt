@@ -40,5 +40,9 @@ int main(int argc, char** argv) {
     if (qEnvironmentVariableIsSet("HMCB_AUTOSTART"))
         QTimer::singleShot(2500, &ctrl, [&ctrl] { ctrl.start(0); });
 
+    // 无头截图钩子：HMCB_SNAPSHOT=<path> 时就绪后保存主窗口截图（UI 对齐核对用）
+    if (const auto snap = qEnvironmentVariable("HMCB_SNAPSHOT"); !snap.isEmpty())
+        QTimer::singleShot(3500, &w, [&w, snap] { w.grab().save(snap); });
+
     return app.exec();
 }

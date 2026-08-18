@@ -38,7 +38,7 @@ set(APP_SOURCES
     ui/GainCalibResultDialog.cpp
 )
 
-qt_add_executable(HMCB_Qt ${APP_SOURCES})
+qt_add_executable(HMCB_Qt ${APP_SOURCES} ui/app.qrc)
 target_include_directories(HMCB_Qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${MCBCTRL_INCLUDE_DIRS})

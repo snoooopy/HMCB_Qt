@@ -9,16 +9,17 @@ class MessageLog;
 class GraphView;
 class OneModuleView;
 class QLabel;
+class QAction;
 
 // 主窗口：菜单/工具栏/状态栏 + 中央 splitter（左数据网格，右板状态）+ 底部消息日志。
-// 持有 McbController 指针（不拥有），把 controller 信号接到各 UI 组件。
+// 菜单与工具栏严格对照 Windows MCB_TEST.rc 的 IDR_MAINFRAME（文字/顺序/分隔），
+// 未实现的 Phase 4 功能置灰占位。持有 McbController 指针（不拥有）。
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(McbController* ctrl, QWidget* parent = nullptr);
 
 private slots:
-    void onConnect();
     void onReconnect();
     void onStart();
     void onStop();
@@ -35,13 +36,12 @@ private slots:
     void onMeasureVnoiseD();     // function=3
     void onMeasureInl();         // function=2
     void onMeasureGain();        // function=6
-    void onToggleGraph(bool on);
-    void onToggleOneModule(bool on);
     void onSaveResult();
     void onMeasurementReady(int function);
     void onGainCalibReady();
 
 private:
+    void buildActions();   // 共享 QAction（菜单与工具栏挂同一动作，同 MFC 同 ID）
     void buildMenus();
     void buildToolBar();
     void buildStatusBar();
@@ -53,6 +53,21 @@ private:
     MessageLog*  m_log = nullptr;
     GraphView*   m_graph = nullptr;
     OneModuleView* m_one = nullptr;
+
+    // 共享动作（对照 .rc 命令 ID；Trigger/DataFormat 为互斥组）
+    QAction* m_aSaveResult = nullptr;
+    QAction* m_aTrigInner  = nullptr;
+    QAction* m_aTrigOuter  = nullptr;
+    QAction* m_aTrigCascade = nullptr;
+    QAction* m_aHex = nullptr;
+    QAction* m_aDec = nullptr;
+    QAction* m_aMv  = nullptr;
+    QAction* m_aGraph = nullptr;
+    QAction* m_aOneModule = nullptr;
+    QAction* m_aTestMode = nullptr;
+    QAction* m_aSendAll  = nullptr;
+    QAction* m_aPrevPage = nullptr;
+    QAction* m_aNextPage = nullptr;
 
     // 状态栏 5 格
     QLabel* m_stRun    = nullptr;   // 运行时间

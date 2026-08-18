@@ -261,6 +261,8 @@ QVector<uint8_t> McbController::dmGainValues(int nMCB) const {
 
 void McbController::setTrigger(int mode)        { if (m_be) m_be->setTrigger(mode); }
 void McbController::setRangeMode(int range)     { if (m_be) m_be->setRangeMode(range); }
+void McbController::setTestMode(bool on)        { if (m_be) m_be->setTestMode(on); }
+void McbController::setSendAllData(bool on)     { if (m_be) m_be->setSendAllData(on); }
 void McbController::setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt) {
     if (m_be) m_be->setTiming(potmt, potmw, intt);
 }

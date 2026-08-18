@@ -1,0 +1,29 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/tb">
+        <file>icons/tb_save_result.png</file>
+        <file>icons/tb_save_image.png</file>
+        <file>icons/tb_save_origin.png</file>
+        <file>icons/tb_start.png</file>
+        <file>icons/tb_trig_inner.png</file>
+        <file>icons/tb_trig_outer.png</file>
+        <file>icons/tb_stop.png</file>
+        <file>icons/tb_zero.png</file>
+        <file>icons/tb_noise.png</file>
+        <file>icons/tb_noise_det.png</file>
+        <file>icons/tb_inl.png</file>
+        <file>icons/tb_xdif.png</file>
+        <file>icons/tb_gain_calib.png</file>
+        <file>icons/tb_test_mode.png</file>
+        <file>icons/tb_fndm.png</file>
+        <file>icons/tb_ndet.png</file>
+        <file>icons/tb_one_module.png</file>
+        <file>icons/tb_prev_page.png</file>
+        <file>icons/tb_next_page.png</file>
+        <file>icons/tb_hex.png</file>
+        <file>icons/tb_dec.png</file>
+        <file>icons/tb_mv.png</file>
+        <file>icons/tb_graph.png</file>
+        <file>icons/tb_exit.png</file>
+    </qresource>
+</RCC>
