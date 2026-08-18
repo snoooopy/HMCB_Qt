@@ -49,6 +49,8 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
     // dataChanged 都整列重算宽度（文本测量），帧刷新时会饱和 GUI 线程
     m_view->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_view->verticalHeader()->setVisible(false);
+    // 设备就绪前不建表（对照 Windows：DVREADY 前 CListCtrl 无列无行 → 空白）
+    m_view->horizontalHeader()->hide();
     lay->addWidget(m_view, 1);
 
     // 脏帧合并刷新：首帧启动定时器，250ms 后刷一次（期间新帧只标脏）
@@ -56,11 +58,12 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
     m_flushTimer->setSingleShot(true);
     m_flushTimer->setInterval(kFlushMs);
     connect(m_flushTimer, &QTimer::timeout, this, [this] {
-        if (m_dirty) { m_dirty = false; refreshFromCache(); }
+        if (m_dirty) {
+            m_dirty = false;
+            refreshFromCache();
+            maybeResize();   // 首帧/格式切换后一次性列宽自适应（消除 … 省略号）
+        }
     });
-
-    rebuildModel();
-    refreshHeader();
 
     // 双击表头：循环显示模式 Raw→Vzero→Vnoise→Inl→Raw；Inl 内再循环 5 子视图
     connect(m_view->horizontalHeader(), &QHeaderView::sectionDoubleClicked,
@@ -78,7 +81,10 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
 void DataGridWidget::setDisplayFormat(DisplayFormat f) {
     if (m_fmt == f) return;
     m_fmt = f;
+    if (m_built) refreshHeader();   // 列头 "Vo(HEX/DEC/mV)" 联动
     refreshCurrent();
+    m_sizedDirty = true;            // HEX/DEC/mV 文本宽度不同
+    maybeResize();
 }
 
 void DataGridWidget::setDisplayMode(DisplayMode m) {
@@ -104,19 +110,28 @@ void DataGridWidget::setThresholds(uint32_t lo, uint32_t hi) {
     refreshCurrent();
 }
 
-void DataGridWidget::setRows(int rows) {
-    if (rows <= 0 || rows == m_rows) return;
-    m_rows = rows;
+void DataGridWidget::setGeometry(int channels, int rowNum, int admCount) {
+    if (channels <= 0 || rowNum <= 0 || admCount <= 0) return;
+    m_rows = channels;
+    m_rowNum = rowNum;
+    m_admCount = admCount;
+    m_built = true;
+    m_page = 0;
+    m_hadData = false;
+    m_sizedDirty = true;
     rebuildModel();
     refreshHeader();
+    m_view->horizontalHeader()->show();
     refreshCurrent();
+    maybeResize();
 }
 
 int DataGridWidget::pageCount() const {
-    return (kTotalCols + kPageCols - 1) / kPageCols;
+    return m_built ? (m_admCount + kPageCols - 1) / kPageCols : 0;
 }
 
 void DataGridWidget::setPage(int page) {
+    if (!m_built) return;
     page = qBound(0, page, pageCount() - 1);
     if (page == m_page) return;
     m_page = page;
@@ -139,29 +154,45 @@ void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
 
 void DataGridWidget::rebuildModel() {
     m_model->clear();
-    m_model->setRowCount(m_rows);
-    m_model->setColumnCount(kPageCols + 1);   // 第 0 列为行索引
+    // 每通道 2 行：数据行（行标 " CH{c}-{rr}"）+ 空间隔行（对照 Windows
+    // InitialDataList 的 InsertItem(2i+2)/InsertItem(2i+3)）
+    m_model->setRowCount(m_rows * 2);
+    m_model->setColumnCount(kPageCols + 1);   // 第 0 列为行标
     for (int r = 0; r < m_rows; ++r) {
-        auto* idx = new QStandardItem(QString::number(r));
+        auto* idx = new QStandardItem(
+            QStringLiteral(" CH%1-%2")
+                .arg(r / m_rowNum)
+                .arg(r % m_rowNum, 2, 10, QChar('0')));
         idx->setEditable(false);
         idx->setBackground(QColor(230, 230, 230));
-        m_model->setItem(r, 0, idx);
+        m_model->setItem(modelRow(r), 0, idx);
         for (int c = 0; c < kPageCols; ++c) {
             auto* it = new QStandardItem;
             it->setEditable(false);
-            m_model->setItem(r, c + 1, it);
+            m_model->setItem(modelRow(r), c + 1, it);
+        }
+        for (int c = 0; c <= kPageCols; ++c) {
+            auto* it = new QStandardItem;   // 间隔行整行空
+            it->setEditable(false);
+            m_model->setItem(modelRow(r) + 1, c, it);
         }
     }
-    // 一次性列宽自适应（代替 ResizeToContents 常驻模式，见构造函数注释）
-    m_view->resizeColumnsToContents();
 }
 
 void DataGridWidget::refreshHeader() {
+    if (!m_built) return;
+    const QString f = (m_fmt == DisplayFormat::Hex) ? QStringLiteral("Vo(HEX)")
+                    : (m_fmt == DisplayFormat::mV)  ? QStringLiteral("Vo(mV)")
+                                                    : QStringLiteral("Vo(DEC)");
+    m_model->setHeaderData(0, Qt::Horizontal, f);
     const int start = m_page * kPageCols;
-    m_model->setHeaderData(0, Qt::Horizontal, QStringLiteral("CH"));
-    for (int c = 0; c < kPageCols; ++c)
-        m_model->setHeaderData(c + 1, Qt::Horizontal,
-                               QStringLiteral("AD%1").arg(start + c));
+    for (int c = 0; c < kPageCols; ++c) {
+        const int g = start + c;
+        QString h;   // 对照 ChangeDataPage：ADM 之后第一位 ExDATA，再后留空
+        if (g < m_admCount)       h = QStringLiteral("ADM%1").arg(g, 2, 10, QChar('0'));
+        else if (g == m_admCount) h = QStringLiteral("ExDATA");
+        m_model->setHeaderData(c + 1, Qt::Horizontal, h);
+    }
     m_pageLabel->setText(QStringLiteral("Page %1/%2").arg(m_page + 1).arg(pageCount()));
     if (m_mode == DisplayMode::Inl) {   // 对照 m_nINLDataType 五态
         static const char* sub[] = {"INL(permille)", "DIV(%)", "r", "a", "b"};
@@ -170,7 +201,7 @@ void DataGridWidget::refreshHeader() {
 }
 
 void DataGridWidget::refreshFromCache() {
-    if (m_last.isEmpty()) return;
+    if (!m_built || m_last.isEmpty()) return;
     const int start = m_page * kPageCols;
     const QBrush pass(QColor(220, 255, 220));   // 浅绿
     const QBrush fail(QColor(255, 215, 215));   // 浅红
@@ -178,7 +209,7 @@ void DataGridWidget::refreshFromCache() {
         const int module = start + c;
         for (int r = 0; r < m_rows; ++r) {
             const int idx = module * m_rows + r;
-            QStandardItem* it = m_model->item(r, c + 1);
+            QStandardItem* it = m_model->item(modelRow(r), c + 1);
             if (!it) continue;
             if (idx >= m_last.size()) {
                 it->setText(QString());
@@ -189,6 +220,18 @@ void DataGridWidget::refreshFromCache() {
             it->setBackground((v >= m_lo && v <= m_hi) ? pass : fail);
         }
     }
+    if (!m_hadData) {          // 首帧数据到位：触发一次列宽自适应
+        m_hadData = true;
+        m_sizedDirty = true;
+    }
+}
+
+void DataGridWidget::maybeResize() {
+    if (!m_built || !m_sizedDirty) return;
+    m_sizedDirty = false;
+    // 一次性列宽自适应：数据完整显示（不出现 …）；不可用 ResizeToContents
+    // 常驻模式（每个 dataChanged 整列文本测量会饱和 GUI 线程，见构造函数注释）
+    m_view->resizeColumnsToContents();
 }
 
 void DataGridWidget::refreshCurrent() {
@@ -197,7 +240,7 @@ void DataGridWidget::refreshCurrent() {
 }
 
 void DataGridWidget::refreshMeasurement() {
-    if (!m_eng) return;
+    if (!m_built || !m_eng) return;
     const auto& cfg = m_eng->config();
     const int start = m_page * kPageCols;
     const QBrush pass(QColor(220, 255, 220));   // 合格：浅绿
@@ -206,7 +249,7 @@ void DataGridWidget::refreshMeasurement() {
     for (int c = 0; c < kPageCols; ++c) {
         const int module = start + c;
         for (int r = 0; r < m_rows; ++r) {
-            QStandardItem* it = m_model->item(r, c + 1);
+            QStandardItem* it = m_model->item(modelRow(r), c + 1);
             if (!it) continue;
             const int idx = module * m_rows + r;
             double value = 0; double lo = 0, hi = 0;

@@ -60,3 +60,13 @@ qt_add_executable(test_xmlwriter test_xmlwriter.cpp
 target_link_libraries(test_xmlwriter PRIVATE Qt6::Test Qt6::Xml)
 target_include_directories(test_xmlwriter PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME xmlwriter COMMAND test_xmlwriter)
+
+# ---- test_datagrid：数据网格生命周期/几何/表头/列宽（offscreen QWidget）----
+qt_add_executable(test_datagrid test_datagrid.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/DataGridWidget.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/MeasurementEngine.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/McbTypes.cpp)
+target_link_libraries(test_datagrid PRIVATE Qt6::Test Qt6::Widgets)
+target_include_directories(test_datagrid PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
+add_test(NAME datagrid COMMAND test_datagrid)
+set_tests_properties(datagrid PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

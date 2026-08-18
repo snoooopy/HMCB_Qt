@@ -11,8 +11,10 @@ class QLabel;
 class QTimer;
 
 // 中央数据网格：QTableView 展示一帧通道数据。
-// 列 = 当前页的若干 AD 模块（MAX_MCBADNUM=64，每页 10 个，共 7 页），
-// 行 = 每模块通道数（MAX_DMROWNUM*MAX_DMCOLNUM=1024，可按实际几何收缩）。
+// 生命周期对照 Windows MCB_TESTView：设备就绪（DVREADY）前不建表（区域空白），
+// 就绪后按 GETDMINFO 几何建表（数据格空），首帧数据到达后填充。
+// 行 = 每模块通道数（rowNum*colNum），每通道 2 行（数据行 + 空间隔行）；
+// 列 = 当前页的 ADM 模块（每页 VIEWADM_PG=10 个，列头 ADMxx，尾页补 ExDATA）。
 // 显示格式 HEX/DEC/mV；按上下限阈值着色（Phase1 默认全通过）。
 class DataGridWidget : public QWidget {
     Q_OBJECT
@@ -31,7 +33,9 @@ public:
     void showMeasurement(const MeasurementEngine* eng, int nMCB, int function);
 
     void setThresholds(uint32_t lo, uint32_t hi);  // 着色区间（闭区间内=通过色）
-    void setRows(int rows);                          // 按设备几何设置每模块通道行数
+
+    // 设备就绪后按 GETDMINFO 几何建表：channels=rowNum*colNum、admCount=DM 模块数
+    void setGeometry(int channels, int rowNum, int admCount);
 
     int  pageCount() const;
     int  currentPage() const { return m_page; }
@@ -49,9 +53,13 @@ private:
 
     DisplayFormat m_fmt = DisplayFormat::Dec;
     int m_page = 0;
-    static constexpr int kPageCols = 10;       // 每页 AD 模块数
-    static constexpr int kTotalCols = 64;      // MAX_MCBADNUM
-    int m_rows = 128 * 8;                       // MAX_DMROWNUM*MAX_DMCOLNUM
+    static constexpr int kPageCols = 10;       // 每页 ADM 数（VIEWADM_PG）
+    int m_rows = 0;                             // 每模块通道数（=rowNum*colNum，未建表 0）
+    int m_rowNum = 32;                          // 每 DM 行数（行标 CH{c}-{rr}）
+    int m_admCount = 0;                         // ADM 模块数（列方向）
+    bool m_built = false;                       // DVREADY 前不建表
+    bool m_hadData = false;                     // 首帧后触发一次列宽自适应
+    bool m_sizedDirty = false;                  // 待一次性列宽自适应
     uint32_t m_lo = 0, m_hi = 4095;             // 默认阈值=全程通过
 
     QVector<uint32_t> m_last;
@@ -72,6 +80,8 @@ private:
     void refreshMeasurement();
     void refreshCurrent();   // 按当前模式派发
     void refreshHeader();
+    void maybeResize();      // 一次性列宽自适应（防 … 省略号；不用 ResizeToContents 常驻防 GUI 饱和）
+    static int modelRow(int channelRow) { return channelRow * 2; }   // 数据行，奇数行为间隔
     QString formatValue(uint32_t v) const;
     static QString colorFor(uint32_t v, uint32_t lo, uint32_t hi);
 };

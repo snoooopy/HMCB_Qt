@@ -341,10 +341,12 @@ void MainWindow::onDeviceReady() {
     m_sidebar->setBoardReady(0, true);
     m_stStatus->setText(QStringLiteral("设备就绪"));
     if (m_ctrl) {
-        // 按实际几何调整网格行数 + 停靠窗几何
+        // 按实际几何建表（对照 Windows DVREADY: ResetDataList+InitialDataList，
+        // 几何来自 GETDMINFO=MCBCtrl.ini [MCB]MCB0ADNUM / [ADM]ROW/COLUMN）+ 停靠窗几何
         DMINFO d = m_ctrl->getDmInfo(0);
         const int rows = d.nRowNum * d.nColNum;
-        if (rows > 0) m_grid->setRows(rows);
+        if (rows > 0 && d.nDMNum > 0)
+            m_grid->setGeometry(rows, d.nRowNum, d.nDMNum);
         m_graph->setBoard(0);
         m_one->setBoard(0);
         m_one->setModuleGeometry(d.nRowNum, d.nColNum, d.nDMNum);
