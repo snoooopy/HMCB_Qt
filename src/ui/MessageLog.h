@@ -3,7 +3,8 @@
 
 class QListWidget;
 
-// 底部消息日志：带时间戳、归属板号的只读列表，限制最大条数防止内存膨胀。
+// 右栏消息日志（对照 Windows IDD_MCB_TEST_FORM 的 "MESSAGE:"+列表）：
+// 带时间戳、归属板号的只读列表，限制最大条数防止内存膨胀。
 class MessageLog : public QWidget {
     Q_OBJECT
 public:

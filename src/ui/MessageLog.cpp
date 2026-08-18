@@ -1,4 +1,5 @@
 #include "MessageLog.h"
+#include <QLabel>
 #include <QListWidget>
 #include <QVBoxLayout>
 #include <QTime>
@@ -6,6 +7,9 @@
 MessageLog::MessageLog(QWidget* parent) : QWidget(parent) {
     auto* lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(2);
+    // 标题对照 IDD_MCB_TEST_FORM 的 LTEXT "MESSAGE:"
+    lay->addWidget(new QLabel(QStringLiteral("MESSAGE:"), this));
     m_list = new QListWidget(this);
     m_list->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_list->setAlternatingRowColors(true);

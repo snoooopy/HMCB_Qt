@@ -16,6 +16,7 @@
 #include <QStatusBar>
 #include <QLabel>
 #include <QSplitter>
+#include <QVBoxLayout>
 #include <QTimer>
 #include <QMessageBox>
 #include <QApplication>
@@ -28,21 +29,23 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     setWindowTitle(QStringLiteral("HM MCB Test Program"));
     resize(1280, 800);
 
-    // ---- 中央区：上=[网格 | 侧栏]，下=消息日志 ----
-    auto* top = new QSplitter(Qt::Horizontal);
+    // ---- 中央区：对照 IDD_MCB_TEST_FORM——左=大数据网格；
+    // 右栏自上而下=MCB STATUS 组、SOCKET/PULSE/DIFF 组、MESSAGE 日志 ----
     m_grid = new DataGridWidget;
     m_sidebar = new StatusSidebar;
-    top->addWidget(m_grid);
-    top->addWidget(m_sidebar);
-    top->setStretchFactor(0, 4);
-    top->setStretchFactor(1, 1);
-
     m_log = new MessageLog;
 
-    auto* main = new QSplitter(Qt::Vertical);
-    main->addWidget(top);
-    main->addWidget(m_log);
-    main->setStretchFactor(0, 3);
+    auto* right = new QWidget;
+    auto* rl = new QVBoxLayout(right);
+    rl->setContentsMargins(0, 0, 0, 0);
+    rl->setSpacing(4);
+    rl->addWidget(m_sidebar);
+    rl->addWidget(m_log, 1);   // 日志占右栏剩余高度（Windows 比例 ~1/3）
+
+    auto* main = new QSplitter(Qt::Horizontal);
+    main->addWidget(m_grid);
+    main->addWidget(right);
+    main->setStretchFactor(0, 4);
     main->setStretchFactor(1, 1);
     setCentralWidget(main);
 
