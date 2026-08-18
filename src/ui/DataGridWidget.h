@@ -13,7 +13,7 @@ class QTimer;
 // 中央数据网格：QTableView 展示一帧通道数据。
 // 生命周期对照 Windows MCB_TESTView：设备就绪（DVREADY）前不建表（区域空白），
 // 就绪后按 GETDMINFO 几何建表（数据格空），首帧数据到达后填充。
-// 行 = 每模块通道数（rowNum*colNum），每通道 2 行（数据行 + 空间隔行）；
+// 行 = 每模块通道数（rowNum*colNum，行标 " CH{c}-{rr}"）；
 // 列 = 当前页的 ADM 模块（每页 VIEWADM_PG=10 个，列头 ADMxx，尾页补 ExDATA）。
 // 显示格式 HEX/DEC/mV；按上下限阈值着色（Phase1 默认全通过）。
 class DataGridWidget : public QWidget {
@@ -81,7 +81,6 @@ private:
     void refreshCurrent();   // 按当前模式派发
     void refreshHeader();
     void maybeResize();      // 一次性列宽自适应（防 … 省略号；不用 ResizeToContents 常驻防 GUI 饱和）
-    static int modelRow(int channelRow) { return channelRow * 2; }   // 数据行，奇数行为间隔
     QString formatValue(uint32_t v) const;
     static QString colorFor(uint32_t v, uint32_t lo, uint32_t hi);
 };

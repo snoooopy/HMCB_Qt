@@ -154,9 +154,11 @@ void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
 
 void DataGridWidget::rebuildModel() {
     m_model->clear();
-    // 每通道 2 行：数据行（行标 " CH{c}-{rr}"）+ 空间隔行（对照 Windows
-    // InitialDataList 的 InsertItem(2i+2)/InsertItem(2i+3)）
-    m_model->setRowCount(m_rows * 2);
+    // 每通道 1 行：行标 " CH{c}-{rr}" + 各 ADM 列数据。
+    // 注：Windows InitialDataList 每通道后另插一个空行（InsertItem(2i+3)），
+    // 但 MFC 列表无网格线，空行只是行距效果；Qt 带网格线会显成"缺数据空格"，
+    // 故不复刻。
+    m_model->setRowCount(m_rows);
     m_model->setColumnCount(kPageCols + 1);   // 第 0 列为行标
     for (int r = 0; r < m_rows; ++r) {
         auto* idx = new QStandardItem(
@@ -165,16 +167,11 @@ void DataGridWidget::rebuildModel() {
                 .arg(r % m_rowNum, 2, 10, QChar('0')));
         idx->setEditable(false);
         idx->setBackground(QColor(230, 230, 230));
-        m_model->setItem(modelRow(r), 0, idx);
+        m_model->setItem(r, 0, idx);
         for (int c = 0; c < kPageCols; ++c) {
             auto* it = new QStandardItem;
             it->setEditable(false);
-            m_model->setItem(modelRow(r), c + 1, it);
-        }
-        for (int c = 0; c <= kPageCols; ++c) {
-            auto* it = new QStandardItem;   // 间隔行整行空
-            it->setEditable(false);
-            m_model->setItem(modelRow(r) + 1, c, it);
+            m_model->setItem(r, c + 1, it);
         }
     }
 }
@@ -209,7 +206,7 @@ void DataGridWidget::refreshFromCache() {
         const int module = start + c;
         for (int r = 0; r < m_rows; ++r) {
             const int idx = module * m_rows + r;
-            QStandardItem* it = m_model->item(modelRow(r), c + 1);
+            QStandardItem* it = m_model->item(r, c + 1);
             if (!it) continue;
             if (idx >= m_last.size()) {
                 it->setText(QString());
@@ -249,7 +246,7 @@ void DataGridWidget::refreshMeasurement() {
     for (int c = 0; c < kPageCols; ++c) {
         const int module = start + c;
         for (int r = 0; r < m_rows; ++r) {
-            QStandardItem* it = m_model->item(modelRow(r), c + 1);
+            QStandardItem* it = m_model->item(r, c + 1);
             if (!it) continue;
             const int idx = module * m_rows + r;
             double value = 0; double lo = 0, hi = 0;
