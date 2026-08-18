@@ -24,5 +24,9 @@ HEADERS += $$files($$PWD/src/*.h, true)
 TARGET = HMCB_Qt
 TEMPLATE = app
 
-# ---- 构建后把 config 拷到可执行目录，便于运行读取 app.ini ----
-QMAKE_POST_LINK += $$QMAKE_COPY_DIR $$shell_path($$PWD/config) $$shell_path($$OUT_PWD/config) $$escape_expand(\\n\\t)
+# ---- 每次构建把 config 拷到可执行目录，便于运行读取 app.ini ----
+# （不用 QMAKE_POST_LINK：仅改配置时目标不重链、配置不同步）
+config_sync.target = sync_config
+config_sync.commands = $$QMAKE_COPY_DIR $$shell_path($$PWD/config) $$shell_path($$OUT_PWD/config)
+QMAKE_EXTRA_TARGETS += config_sync
+POST_TARGETDEPS += sync_config

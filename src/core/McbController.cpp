@@ -15,6 +15,9 @@ McbController::McbController(QObject* parent) : QObject(parent) {
 
 void McbController::setBackendMode(const QString& mode) {
     m_mode = mode.toLower().trimmed();
+    // 中文别名归一（app.ini 允许 mock/仿真、real/真实 两种写法）
+    if (m_mode == QStringLiteral("仿真")) m_mode = QStringLiteral("mock");
+    else if (m_mode == QStringLiteral("真实")) m_mode = QStringLiteral("real");
 }
 
 void McbController::startUp() {
@@ -76,7 +79,16 @@ void McbController::shutdown() {
     m_be.reset();
 }
 
-void McbController::initializeBackend() { if (m_be) m_be->initialize(); }
+void McbController::initializeBackend() {
+    if (!m_be) return;
+    if (m_mode == QStringLiteral("real"))
+        // 库约定：SETCONFIGFILE 传目录，INITIAL 时读 <目录>/MCBCtrl.ini
+        // （[CONNECTION] IPADDR/AUTOCONNECT）。不设则库回退到 libmcbctrl.so
+        // 所在目录找同名文件——统一放工程 config/ 便于部署。
+        m_be->setConfigFile(QCoreApplication::applicationDirPath()
+                            + QStringLiteral("/config"));
+    m_be->initialize();
+}
 
 void McbController::start(uint32_t sampleCount) {
     if (!m_be) return;

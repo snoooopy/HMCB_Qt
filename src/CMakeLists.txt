@@ -46,7 +46,10 @@ target_link_libraries(HMCB_Qt PRIVATE Qt6::Widgets Qt6::Network Qt6::Xml mcbctrl
 set_target_properties(HMCB_Qt PROPERTIES
     WIN32_EXECUTABLE OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-# 运行期在可执行目录提供 config
-add_custom_command(TARGET HMCB_Qt POST_BUILD
+# 运行期在可执行目录提供 config。
+# 注意不能挂 POST_BUILD：仅改配置文件（无代码变化）时目标不重链、配置不
+# 同步；custom_target 挂 ALL 每次构建都拷（copy_directory 开销可忽略）。
+add_custom_target(sync_config ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/../config" "$<TARGET_FILE_DIR:HMCB_Qt>/config")
+add_dependencies(HMCB_Qt sync_config)
