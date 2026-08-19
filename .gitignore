@@ -24,3 +24,4 @@ tests/*_autogen/
 /tests/cmake_install.cmake
 /tests/test_*
 !/tests/test_*.cpp
+/dist/

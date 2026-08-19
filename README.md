@@ -75,6 +75,17 @@ qmake6 HMCB_Qt.pro -o build_qmake/Makefile && make -C build_qmake -j
 - 无头冒烟：`QT_QPA_PLATFORM=offscreen HMCB_AUTOSTART=1 HMCB_SNAPSHOT=/tmp/snap.png ./build/HMCB_Qt`
   （自动开始采集并在 3.5s 截图，配合 timeout 使用）。
 
+### 3.1 打包发布
+
+```bash
+tools/make_package.sh          # 产物 dist/HMCB_Qt_<日期>.tar.gz
+```
+
+便携自包含包（约 32 MB）：`bin/HMCB_Qt` + `lib/`（Qt6 全家、libmcbctrl 及
+全部非系统依赖，45 个 so 递归收集）+ `plugins/`（xcb/offscreen/minimal 平台
+插件）+ `config/` + `run.sh`。目标机只需 Ubuntu x86-64 桌面基础库，
+解包后 `./run.sh` 运行；无显示环境调试用 `QT_QPA_PLATFORM=offscreen ./run.sh`。
+
 ## 4. 架构
 
 四层结构，UI 与硬件彻底解耦：
