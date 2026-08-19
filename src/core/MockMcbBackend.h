@@ -56,6 +56,15 @@ public:
     uint32_t lastPotmt() const { return m_potmt; }
     uint32_t lastIntt() const { return m_intt; }
 
+    void setFndmPara(const QVector<FndmParaBuilder::Ch>& para) override {
+        m_fndmPara = para;
+    }
+    void setFndmDeMode(bool on) override { m_deMode = on; }
+    void setFndmNsType(int ns) override  { m_nsType = ns; }
+    QVector<FndmParaBuilder::Ch> lastFndmPara() const { return m_fndmPara; }
+    bool lastDeMode() const { return m_deMode; }
+    int  lastNsType() const { return m_nsType; }
+
     uint32_t getMcbNum() override { return 1; }
     bool getDeviceReady() override { return m_ready; }
     bool getRunStatus() override { return m_running; }
@@ -84,6 +93,9 @@ private:
     QVector<uint8_t> m_lastNewIp;         // 最近一次 setNewIp 的 12 字节
     bool m_dumpEeprom = false, m_dumpEcs = false;
     uint32_t m_potmt = 0, m_intt = 0;
+    QVector<FndmParaBuilder::Ch> m_fndmPara;   // 最近一次 SETFNDMPARA 组包
+    bool m_deMode = false;
+    int  m_nsType = 0;
 
     void emitStatus(WPARAM cat, int nMCB, uint32_t code) {
         if (m_status) m_status(cat, nMCB, code);

@@ -172,6 +172,22 @@ private slots:
         QCOMPARE(b.lastPotmt(), 0u);
         QCOMPARE(b.lastIntt(), 0u);
     }
+
+    void fndmCommandsRecorded() {
+        // SETFNDMPARA 组包 / SETDEMODE / SETNSTYPE 记录回读
+        MockMcbBackend b;
+        QVERIFY(!b.lastDeMode());
+        QCOMPARE(b.lastNsType(), 0);
+        b.setFndmPara({ FndmParaBuilder::Ch(0, 0, 0, 0, 0, 100),
+                        FndmParaBuilder::Ch(0, 1, 3, 4, 0, 200) });
+        QCOMPARE(b.lastFndmPara().size(), 2);
+        QCOMPARE(b.lastFndmPara()[1].row, 3u);
+        QCOMPARE(b.lastFndmPara()[1].value, 200);
+        b.setFndmDeMode(true);
+        b.setFndmNsType(1);
+        QVERIFY(b.lastDeMode());
+        QCOMPARE(b.lastNsType(), 1);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMockBackend)

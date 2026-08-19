@@ -238,11 +238,23 @@ void MainWindow::buildMenus() {
     measMenu->addSeparator();
     // .rc 中 "&&" 转义为显示 "&"
     measMenu->addAction(QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
-        ->setEnabled(false);                                                        // Phase 4
-    measMenu->addAction(QStringLiteral("FNDM DualEnergy Mode"))->setEnabled(false); // Phase 4
+        ->setEnabled(false);                                                        // Phase 4-6b（对话框）
+    // FNDM 三项共用门控 !start && ready && ENFNDMODE（Windows m_bFND）
+    const bool fnd = m_ctrl && m_ctrl->fndmEnabled();
+    auto* aFndmDe = measMenu->addAction(QStringLiteral("FNDM DualEnergy Mode"));
+    aFndmDe->setCheckable(true);
+    aFndmDe->setEnabled(fnd);
+    connect(aFndmDe, &QAction::triggered, this, &MainWindow::onFndmDeMode);
     auto* fnsMenu = measMenu->addMenu(QStringLiteral("Fast Neutron Source Type"));
-    fnsMenu->addAction(QStringLiteral("Pulsed"))->setEnabled(false);                // Phase 4
-    fnsMenu->addAction(QStringLiteral("Continued"))->setEnabled(false);             // Phase 4
+    fnsMenu->setEnabled(fnd);
+    m_aFndmNsPulsed = fnsMenu->addAction(QStringLiteral("Pulsed"));
+    m_aFndmNsPulsed->setCheckable(true);
+    m_aFndmNsPulsed->setChecked(true);                 // m_nNs 初值 0（Pulsed）
+    connect(m_aFndmNsPulsed, &QAction::triggered, this, &MainWindow::onFndmNsPulsed);
+    m_aFndmNsContinued = fnsMenu->addAction(QStringLiteral("Continued"));
+    m_aFndmNsContinued->setCheckable(true);
+    connect(m_aFndmNsContinued, &QAction::triggered, this, &MainWindow::onFndmNsContinued);
+    if (fnd) m_readyGateActions += { aFndmDe };        // 采集期间关（子菜单随 fnsMenu 整体）
 
     // Tools（Set New IP 已实现；其余 Phase 4）
     auto* toolsMenu = menuBar()->addMenu(QStringLiteral("Tools"));
@@ -478,6 +490,30 @@ void MainWindow::onSavePosData() {
         m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
     else
         QMessageBox::warning(this, QStringLiteral("Error"), QStringLiteral("Open File Error!"));
+}
+
+// ---- Phase 4-6：FNDM 双能模式 / 快中子源类型 ----
+void MainWindow::onFndmDeMode() {
+    // 对照 OnFndmDe：toggle 后发 SETDEMODE，菜单 check 态跟随
+    if (!m_ctrl) return;
+    QAction* a = qobject_cast<QAction*>(sender());
+    const bool on = a ? a->isChecked() : false;
+    m_ctrl->setFndmDeMode(on);
+}
+void MainWindow::onFndmNsPulsed() {
+    // 对照 OnFastneutronsourcetypePulse：仅 m_nNs!=0 时切换并发送
+    if (!m_ctrl || m_fndmNs == 0) { if (m_aFndmNsPulsed) m_aFndmNsPulsed->setChecked(true); return; }
+    m_fndmNs = 0;
+    m_aFndmNsPulsed->setChecked(true);
+    m_aFndmNsContinued->setChecked(false);
+    m_ctrl->setFndmNsType(0);
+}
+void MainWindow::onFndmNsContinued() {
+    if (!m_ctrl || m_fndmNs == 1) { if (m_aFndmNsContinued) m_aFndmNsContinued->setChecked(false); return; }
+    m_fndmNs = 1;
+    m_aFndmNsContinued->setChecked(true);
+    m_aFndmNsPulsed->setChecked(false);
+    m_ctrl->setFndmNsType(1);
 }
 
 void MainWindow::onSaveOriginData() {

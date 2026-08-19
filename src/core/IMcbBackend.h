@@ -4,6 +4,7 @@
 #include <QString>
 #include <QVector>
 #include "core/McbTypes.h"
+#include "core/FndmParaBuilder.h"
 #include "MCBCtrl.h"   // DMINFO, WPARAM
 
 // 后端抽象：真实硬件（RealMcbBackend，封装 libmcbctrl）与仿真（MockMcbBackend）共用此接口。
@@ -50,6 +51,13 @@ public:
     // Phase 4：MCB Control 计时设置（Windows 固定发 0）
     virtual void setPotmt(uint32_t potmt) = 0;    // MCB_CMD_SETPOTMT
     virtual void setIntt(uint32_t intt) = 0;      // MCB_CMD_SETINTTM
+
+    // Phase 4：FNDM（快中子模块）。SETFNDMPARA 组包见 FndmParaBuilder；
+    // SETDEMODE LPARAM=BOOL、SETNSTYPE LPARAM=0/1（Pulsed/Continued）。
+    // Linux 库 MCBThread 三 case 实现均被注释（静默忽略），照 Windows 契约转发
+    virtual void setFndmPara(const QVector<FndmParaBuilder::Ch>& para) = 0;
+    virtual void setFndmDeMode(bool on) = 0;      // MCB_CMD_SETDEMODE
+    virtual void setFndmNsType(int ns) = 0;       // MCB_CMD_SETNSTYPE
 
     // 同步查询（短暂阻塞，经返回值给出）
     virtual uint32_t getMcbNum() = 0;

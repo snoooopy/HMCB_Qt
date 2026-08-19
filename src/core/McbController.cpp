@@ -366,6 +366,40 @@ void McbController::setDm2TypeRangeFromIni(const QString& testIniPath) {
     emit statusMessage(QStringLiteral("[MCB0] Set DM 2 Types Range: 已按 MCB_TEST.ini [SETRANGE] 下发"), 0);
 }
 
+// ---- Phase 4-6：FNDM（对照 OnFndmDe/OnFastneutronsourcetype*/UpdateCurrentFndmPara）----
+
+void McbController::setFndmPara(const QVector<FndmParaBuilder::Ch>& para) {
+    if (!m_be) return;
+    m_be->setFndmPara(para);
+    emit statusMessage(QStringLiteral("[MCB0] SETFNDMPARA：已下发 %1 项通道参数").arg(para.size()), 0);
+}
+
+void McbController::setFndmDeMode(bool on) {
+    // 对照 OnFndmDe：toggle 后发 SETDEMODE（m_nInvalidPacket 半减是库内
+    // 无消费的死变量，不移植）
+    if (!m_be) return;
+    m_be->setFndmDeMode(on);
+    emit statusMessage(on ? QStringLiteral("[MCB0] FNDM DualEnergy Mode: ON")
+                          : QStringLiteral("[MCB0] FNDM DualEnergy Mode: OFF"), 0);
+}
+
+void McbController::setFndmNsType(int ns) {
+    // 对照 OnFastneutronsourcetype*：仅变化时发送（由 UI 保证），0-Pulsed 1-Continued
+    if (!m_be) return;
+    m_be->setFndmNsType(ns);
+    emit statusMessage(QStringLiteral("[MCB0] Fast Neutron Source Type: %1")
+                           .arg(ns == 1 ? QStringLiteral("Continued") : QStringLiteral("Pulsed")), 0);
+}
+
+bool McbController::fndmEnabled() {
+    // Windows m_bFND = (MCBCtrl.ini [ADM] ENFNDMODE == 1)
+    IniFile ini;
+    ini.setFileName(QCoreApplication::applicationDirPath()
+                    + QStringLiteral("/config/MCBCtrl.ini"));
+    return ini.readAll() && ini.getInt(QStringLiteral("ADM"),
+                                       QStringLiteral("ENFNDMODE"), 0) == 1;
+}
+
 DMINFO    McbController::getDmInfo(int nMCB) { return m_be ? m_be->getDmInfo(nMCB) : DMINFO{}; }
 uint32_t  McbController::getMcbNum()         { return m_be ? m_be->getMcbNum() : 0; }
 bool      McbController::getRunStatus()      { return m_be ? m_be->getRunStatus() : false; }

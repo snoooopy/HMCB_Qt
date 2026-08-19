@@ -50,6 +50,9 @@ private slots:
     void onSetDm2Range();       // Measure→Set DM 2 Types Range
     void onSavePosData();       // File→Save Position Code Data
     void onSaveOriginData();    // File→Save Origin Data
+    void onFndmDeMode();        // Measure→FNDM DualEnergy Mode（toggle）
+    void onFndmNsPulsed();      // Measure→Fast Neutron Source Type
+    void onFndmNsContinued();
 
 private:
     void buildActions();   // 共享 QAction（菜单与工具栏挂同一动作，同 MFC 同 ID）
@@ -81,6 +84,9 @@ private:
     QAction* m_aGraph = nullptr;
     QAction* m_aOneModule = nullptr;
     QAction* m_aTestMode = nullptr;
+    QAction* m_aFndmNsPulsed = nullptr;      // Fast Neutron Source Type（check 互斥）
+    QAction* m_aFndmNsContinued = nullptr;
+    int m_fndmNs = 0;                        // Windows m_nNs：0-Pulsed 1-Continued
     QAction* m_aSendAll  = nullptr;
     QAction* m_aPrevPage = nullptr;
     QAction* m_aNextPage = nullptr;

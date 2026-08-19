@@ -92,6 +92,32 @@ void RealMcbBackend::dumpAllEcsRegisters() { SetMCBCommand(MCB_CMD_DUMPALLECSREG
 void RealMcbBackend::setPotmt(uint32_t v)  { SetMCBCommand(MCB_CMD_SETPOTMT, static_cast<LPARAM>(v)); }
 void RealMcbBackend::setIntt(uint32_t v)   { SetMCBCommand(MCB_CMD_SETINTTM, static_cast<LPARAM>(v)); }
 
+void RealMcbBackend::setFndmPara(const QVector<FndmParaBuilder::Ch>& para) {
+    // 对照 Windows SetMCBCommand(MCB_CMD_SETFNDMPARA, &FNDMPARA)：
+    // LPARAM 指向 nChannels + ChannelPara[]。结构 ~229KB 用 static（栈放不下，
+    // 且库 default 分支起线程转发时指针须存活）。Linux 库该 case 实现被注释
+    // （MCBCtrl.cpp SETFNDMPARA 分支 / MCBThread.cpp:149 均为空），按契约转发。
+    static FNDMPARA p;                      // UI 线程单调用点，无重入
+    memset(&p, 0, sizeof(p));
+    const int n = qMin<int>(para.size(), int(sizeof(p.ChannelPara) / sizeof(p.ChannelPara[0])));
+    p.nChannels = static_cast<UINT>(n);
+    for (int i = 0; i < n; ++i) {
+        p.ChannelPara[i].nFNDM    = para[i].fndm;
+        p.ChannelPara[i].nType    = para[i].type;
+        p.ChannelPara[i].nRow     = para[i].row;
+        p.ChannelPara[i].nColnum  = para[i].colnum;
+        p.ChannelPara[i].nAdjMode = para[i].adjMode;
+        p.ChannelPara[i].nValue   = para[i].value;
+    }
+    SetMCBCommand(MCB_CMD_SETFNDMPARA, reinterpret_cast<LPARAM>(&p));
+}
+void RealMcbBackend::setFndmDeMode(bool on) {
+    SetMCBCommand(MCB_CMD_SETDEMODE, static_cast<LPARAM>(on ? 1 : 0));
+}
+void RealMcbBackend::setFndmNsType(int ns) {
+    SetMCBCommand(MCB_CMD_SETNSTYPE, static_cast<LPARAM>(ns));
+}
+
 uint32_t RealMcbBackend::getMcbNum() {
     UINT n = 0;
     SetMCBCommand(MCB_CMD_GETMCBNUM, reinterpret_cast<LPARAM>(&n));

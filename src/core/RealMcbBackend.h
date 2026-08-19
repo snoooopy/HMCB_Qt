@@ -29,6 +29,9 @@ public:
     void dumpAllEcsRegisters() override;
     void setPotmt(uint32_t potmt) override;
     void setIntt(uint32_t intt) override;
+    void setFndmPara(const QVector<FndmParaBuilder::Ch>& para) override;
+    void setFndmDeMode(bool on) override;
+    void setFndmNsType(int ns) override;
 
     uint32_t getMcbNum() override;
     bool getDeviceReady() override;
