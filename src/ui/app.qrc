@@ -25,5 +25,6 @@
         <file>icons/tb_mv.png</file>
         <file>icons/tb_graph.png</file>
         <file>icons/tb_exit.png</file>
+        <file>icons/logo_nuctech.png</file>
     </qresource>
 </RCC>

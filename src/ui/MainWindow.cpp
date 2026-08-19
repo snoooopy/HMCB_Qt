@@ -45,6 +45,18 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     rl->addWidget(m_sidebar);
     rl->addWidget(m_log, 1);   // 日志占右栏剩余高度（Windows 比例 ~1/3）
 
+    // 公司 logo：对照 IDD_MCB_TEST_FORM 右下角 IDB_BITMAP_LOGO
+    // （CONTROL 130 SS_BITMAP 518,278 143×16 = res/LOGO.bmp 286×36 半尺寸）
+    auto* logo = new QLabel(right);
+    logo->setPixmap(QPixmap(QStringLiteral(":/tb/icons/logo_nuctech.png")));
+    logo->setScaledContents(true);
+    logo->setFixedSize(143, 16);
+    auto* logoRow = new QHBoxLayout;
+    logoRow->setContentsMargins(0, 0, 8, 0);
+    logoRow->addStretch(1);
+    logoRow->addWidget(logo);
+    rl->addLayout(logoRow);
+
     auto* main = new QSplitter(Qt::Horizontal);
     main->addWidget(m_grid);
     main->addWidget(right);
