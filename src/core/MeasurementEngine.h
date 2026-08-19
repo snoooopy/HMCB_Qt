@@ -2,6 +2,7 @@
 #include <QVector>
 #include <QMutex>
 #include <cstdint>
+#include "McbTypes.h"   // Mcb::FrameEx
 
 // 纯逻辑测量引擎：维护每板帧环形缓冲，实现 Zero/Noise 计算、显示格式转换、pass/fail。
 // 无 UI 依赖，可用合成数据单测。公式对照 Windows VzeroCal/FWHM_Cal。
@@ -45,6 +46,9 @@ public:
     QVector<QPair<uint32_t, uint32_t>> posSnapshot(int nMCB) const;   // (lo, hi) 老→新
     // 帧缓存快照（Save Origin Data 数据源）：老→新，按值拷贝
     QVector<QVector<uint32_t>> ringSnapshot(int nMCB) const;
+    // 每帧扩展数据（Save Image Data 数据源，环形深同 m_depth）
+    void appendExData(int nMCB, const Mcb::FrameEx& x);
+    QVector<Mcb::FrameEx> exSnapshot(int nMCB) const;
 
     int frameCount(int nMCB) const;
     // 按值返回：内部缓冲被工作线程并发写，引用会在锁外失效
@@ -92,6 +96,7 @@ private:
     mutable QMutex m_mutex;                       // 保护 m_ring/m_latest/m_count
     QVector<QVector<uint32_t>> m_ring[MAX_MCB];   // 每板帧环形缓冲（深 m_depth）
     QVector<QPair<uint32_t, uint32_t>> m_pos[MAX_MCB];   // 每帧 (ptsmdata_l, ptsmdata_h)
+    QVector<Mcb::FrameEx> m_ex[MAX_MCB];                 // 每帧扩展数据（ex/accE/godown）
     QVector<uint32_t> m_latest[MAX_MCB];
     int m_count[MAX_MCB]{};
     QVector<double> m_vz[MAX_MCB];

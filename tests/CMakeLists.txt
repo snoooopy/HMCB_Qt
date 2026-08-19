@@ -48,6 +48,13 @@ target_link_libraries(test_measurement PRIVATE Qt6::Test)
 target_include_directories(test_measurement PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME measurement COMMAND test_measurement)
 
+# ---- test_imagedata：Save Image Data 三格式写盘（ORI/IMG/CSV+附加文件）----
+qt_add_executable(test_imagedata test_imagedata.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ImageDataWriter.cpp)
+target_link_libraries(test_imagedata PRIVATE Qt6::Test)
+target_include_directories(test_imagedata PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
+add_test(NAME imagedata COMMAND test_imagedata)
+
 # ---- test_fndmpara：FNDM 参数组包/提取纯逻辑 ----
 qt_add_executable(test_fndmpara test_fndmpara.cpp
     ${CMAKE_SOURCE_DIR}/src/core/FndmParaBuilder.cpp

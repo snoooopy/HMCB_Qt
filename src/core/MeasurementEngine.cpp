@@ -12,6 +12,7 @@ void MeasurementEngine::reset(int nMCB) {
     QMutexLocker lk(&m_mutex);
     m_ring[i].clear();
     m_pos[i].clear();
+    m_ex[i].clear();
     m_latest[i].clear();
     m_count[i] = 0;
     m_vz[i].clear();
@@ -41,6 +42,19 @@ QVector<QPair<uint32_t, uint32_t>> MeasurementEngine::posSnapshot(int nMCB) cons
     int i = idx(nMCB);
     QMutexLocker lk(&m_mutex);
     return m_pos[i];
+}
+
+void MeasurementEngine::appendExData(int nMCB, const Mcb::FrameEx& x) {
+    int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
+    if ((int)m_ex[i].size() >= m_depth) m_ex[i].removeFirst();
+    m_ex[i].append(x);
+}
+
+QVector<Mcb::FrameEx> MeasurementEngine::exSnapshot(int nMCB) const {
+    int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
+    return m_ex[i];
 }
 
 QVector<QVector<uint32_t>> MeasurementEngine::ringSnapshot(int nMCB) const {

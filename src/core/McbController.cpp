@@ -48,6 +48,16 @@ void McbController::startUp() {
         if (m_engine) {
             m_engine->appendFrame(f.nMCB, f.channels);
             m_engine->appendPos(f.nMCB, f.ptsmL, f.ptsmH);   // Save Position Code Data 数据源
+            // Save Image Data 扩展数据源（对照 MCB_TESTView.cpp:855-895 填充链）
+            Mcb::FrameEx x;
+            x.ex[0] = int32_t(f.ain0);
+            x.ex[1] = int32_t(f.ptsmH >> 16);
+            x.ex[2] = int32_t(f.ptsmH & 0xffff);
+            x.ex[3] = int32_t(f.ptsmL >> 16);
+            x.ex[4] = int32_t(f.ptsmL & 0xffff);
+            x.accE = f.accEnergy ? 1875 : 62;
+            x.godown = int32_t((f.regError_DI & 0x04) >> 2);
+            m_engine->appendExData(f.nMCB, x);
         }
         emit frameReady(f.nMCB, f);
     });

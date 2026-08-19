@@ -24,6 +24,8 @@ set(APP_SOURCES
     core/FndmParaBuilder.cpp
     core/FndmScanWriter.h
     core/FndmScanWriter.cpp
+    core/ImageDataWriter.h
+    core/ImageDataWriter.cpp
     core/OriginDataWriter.h
     core/OriginDataWriter.cpp
     core/XmlGainWriter.h

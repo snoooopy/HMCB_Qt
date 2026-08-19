@@ -25,6 +25,15 @@ struct McbFrame {
     QVector<uint32_t> channels;   // 重排后的通道样本（AD模块×行×列 展平）
 };
 
+// 每帧扩展数据（Save Image Data 数据源，对照 Windows m_MCBExData/fAccEnergy/m_godown
+// 填充链 MCB_TESTView.cpp:855-895）：ex[0]=ain0、[1]=ptsm_h>>16、[2]=ptsm_h&0xffff、
+// [3]=ptsm_l>>16、[4]=ptsm_l&0xffff；accE=accEnergy?1875:62；godown=(DI&0x04)>>2
+struct FrameEx {
+    int32_t ex[5] = {0, 0, 0, 0, 0};
+    int32_t accE = 0;
+    int32_t godown = 0;
+};
+
 QString statusCategoryStr(WPARAM category);
 QString statusCodeStr(uint32_t code);
 

@@ -5,6 +5,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include "core/MeasurementEngine.h"
+#include "core/McbTypes.h"
 #include "core/PosDataWriter.h"
 #include "core/OriginDataWriter.h"
 
@@ -271,6 +272,27 @@ private slots:
         QCOMPARE(rd(0), 1000);
         QCOMPARE(rd(128), 5);
         QCOMPARE(rd(127), 1127);
+    }
+
+    void exDataRingAndReset() {
+        // Save Image Data 数据源：每帧扩展字环形（深同 m_depth），reset 清空
+        MeasurementEngine e;
+        e.setDepth(4);
+        for (int i = 0; i < 6; ++i) {
+            Mcb::FrameEx x;
+            x.ex[0] = i; x.ex[1] = i * 2; x.ex[2] = i * 3; x.ex[3] = i * 4; x.ex[4] = i * 5;
+            x.accE = i == 0 ? 1875 : 62;
+            x.godown = i % 2;
+            e.appendExData(0, x);
+        }
+        const auto snap = e.exSnapshot(0);
+        QCOMPARE(snap.size(), 4);                    // 深度回绕，保留第 2..5 帧
+        QCOMPARE(snap.first().ex[0], 2);
+        QCOMPARE(snap.last().ex[4], 25);
+        QCOMPARE(snap.at(1).accE, 62);
+        QCOMPARE(snap.at(1).godown, 1);
+        e.reset(0);
+        QVERIFY(e.exSnapshot(0).isEmpty());
     }
 };
 

@@ -9,6 +9,7 @@
 #include "core/CsvResultWriter.h"
 #include "core/PosDataWriter.h"
 #include "core/OriginDataWriter.h"
+#include "core/ImageDataWriter.h"
 #include "core/IniFile.h"
 #include "ui/GainCalibResultDialog.h"
 #include "ui/SetIpDialog.h"
@@ -29,11 +30,20 @@
 #include <QFileDialog>
 #include <QFile>
 #include <QTextStream>
+#include <QSettings>
 
 MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     : QMainWindow(parent), m_ctrl(ctrl) {
     setWindowTitle(QStringLiteral("HM MCB Test Program"));
     resize(1280, 800);
+    {
+        // 对照 MCB_TESTView.cpp:329：m_bSaveImg = [FILE] SAVEIMGFILE（缺省 1）
+        IniFile ini;
+        ini.setFileName(QCoreApplication::applicationDirPath()
+                        + QStringLiteral("/config/MCB_TEST.ini"));
+        m_bSaveImg = !ini.readAll() || ini.getInt(QStringLiteral("FILE"),
+                                                  QStringLiteral("SAVEIMGFILE"), 1) == 1;
+    }
 
     // ---- 中央区：对照 IDD_MCB_TEST_FORM——左=大数据网格；
     // 右栏自上而下=MCB STATUS 组、SOCKET/PULSE/DIFF 组、MESSAGE 日志 ----
@@ -181,7 +191,8 @@ void MainWindow::buildMenus() {
     fileMenu->addAction(m_aSaveResult);
     auto* aSaveOrigin = fileMenu->addAction(QStringLiteral("Save Origin Data(&D)"));
     connect(aSaveOrigin, &QAction::triggered, this, &MainWindow::onSaveOriginData);
-    fileMenu->addAction(QStringLiteral("Save Image Data(&I)"))->setEnabled(false);       // Phase 4
+    m_aSaveImg = fileMenu->addAction(QStringLiteral("Save Image Data(&I)"));
+    connect(m_aSaveImg, &QAction::triggered, this, &MainWindow::onSaveImageData);
     auto* aSavePos = fileMenu->addAction(QStringLiteral("Save Position Code Data(&C)"));
     connect(aSavePos, &QAction::triggered, this, &MainWindow::onSavePosData);
     fileMenu->addSeparator();
@@ -285,8 +296,7 @@ void MainWindow::buildToolBar() {
 
     tb->addAction(m_aSaveResult);
     tb->addSeparator();
-    auto* aSaveImg = tb->addAction(IC("save_image"), QStringLiteral("Save Image Data"));
-    aSaveImg->setEnabled(false);          // Phase 4
+    tb->addAction(m_aSaveImg);
     auto* aSaveOriginTb = tb->addAction(IC("save_origin"), QStringLiteral("Save Origin Data"));
     connect(aSaveOriginTb, &QAction::triggered, this, &MainWindow::onSaveOriginData);
     tb->addSeparator();
@@ -380,6 +390,8 @@ void MainWindow::onStatusMessage(const QString& text, int nMCB) {
 
 void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
     ++m_frameCount;
+    if (m_aSaveImg && !m_aSaveImg->isEnabled() && m_bSaveImg)
+        m_aSaveImg->setEnabled(true);     // 对照 OnUpdateSavedata：有帧数据才可用
     ++m_framesThisSec;
     m_grid->updateFrame(nMCB, frame);
     m_sidebar->setCounts(0, frame.scounter, frame.pcounter);
@@ -548,6 +560,60 @@ void MainWindow::onSaveOriginData() {
         m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
     else
         QMessageBox::warning(this, QStringLiteral("Error"), QStringLiteral("Open File Error!"));
+}
+
+void MainWindow::onSaveImageData() {
+    // 对照 OnSavedata（MCB_TESTView.cpp:4134-4595）：ORI/IMG/CSV 三格式，
+    // filter 索引经 QSettings 记忆（Windows 注册表 HMCB_TEST\SaveIMGFileType\Index 缺省 2）
+    if (!m_ctrl || !m_ctrl->engine()) return;
+    const auto frames = m_ctrl->engine()->ringSnapshot(0);
+    if (frames.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"),
+                                 QStringLiteral("尚无采集数据，请先采集。"));
+        return;
+    }
+    ImageDataWriter::Options opt;
+    {
+        // 对照 331-334 行：[FILE] 四开关 + 431 行 [ADM] ENFNDMODE（GM 行移位例外）
+        IniFile ini;
+        ini.setFileName(QCoreApplication::applicationDirPath()
+                        + QStringLiteral("/config/MCB_TEST.ini"));
+        const bool has = ini.readAll();
+        opt.pixel16    = !has || ini.getInt(QStringLiteral("FILE"), QStringLiteral("IMGFILEPIXEL"), 16) != 32;
+        opt.oriGM      = has && ini.getInt(QStringLiteral("FILE"), QStringLiteral("GMCORINORI"), 0) == 1;
+        opt.allColumn  = !has || ini.getInt(QStringLiteral("FILE"), QStringLiteral("ALLCOLUMN"), 1) == 1;
+        opt.saveExdata = !has || ini.getInt(QStringLiteral("FILE"), QStringLiteral("SAVE_EXDATA"), 1) == 1;
+        opt.fnd        = has && ini.getInt(QStringLiteral("ADM"), QStringLiteral("ENFNDMODE"), 0) == 1;
+    }
+    opt.adBit = m_ctrl->engine()->config().adBit;
+    const DMINFO d = m_ctrl->getDmInfo(0);
+    opt.nRowNum = int(d.nRowNum);
+    opt.nColNum = int(d.nColNum);
+    opt.nAdm = (opt.nRowNum > 0 && opt.nColNum > 0)
+             ? qMax(1, int(d.nAllChnNum) / (opt.nRowNum * opt.nColNum)) : 1;
+
+    QSettings settings(QStringLiteral("HMCB_TEST"), QStringLiteral("SaveIMGFileType"));
+    const int lastIdx = qBound(1, settings.value(QStringLiteral("Index"), 2).toInt(), 3);
+    QFileDialog dlg(this, QStringLiteral("Save Image Data"));
+    dlg.setAcceptMode(QFileDialog::AcceptSave);
+    dlg.setNameFilters({QStringLiteral("ORI format file(*.ori)"),
+                        QStringLiteral("image format file(*.img)"),
+                        QStringLiteral("CSV(*.csv)")});
+    dlg.selectNameFilter(dlg.nameFilters().value(lastIdx - 1));
+    if (dlg.exec() != QDialog::Accepted || dlg.selectedFiles().isEmpty()) return;
+    const QString path = dlg.selectedFiles().constFirst();
+    const int idx = dlg.nameFilters().indexOf(dlg.selectedNameFilter()) + 1;
+    const auto fmt = idx == 1 ? ImageDataWriter::Format::Ori
+                  : idx == 3 ? ImageDataWriter::Format::Csv
+                             : ImageDataWriter::Format::Img;
+    settings.setValue(QStringLiteral("Index"), idx);
+
+    QString err;
+    if (!ImageDataWriter::save(path, fmt, frames, m_ctrl->engine()->exSnapshot(0), opt, &err)) {
+        QMessageBox::warning(this, QStringLiteral("Error"), err);
+        return;
+    }
+    m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
 }
 
 // Windows Enable(!m_bStart && m_bDVReady)：就绪后开，采集期间关

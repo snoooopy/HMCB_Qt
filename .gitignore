@@ -10,3 +10,17 @@ build_qmake/
 src/CMakeFiles/
 tests/CMakeFiles/
 tests/*_autogen/
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/cmake_install.cmake
+/Makefile
+/Testing/
+/.qt/
+/src/Makefile
+/src/cmake_install.cmake
+/tests/CTestTestfile.cmake
+/tests/Makefile
+/tests/cmake_install.cmake
+/tests/test_*
+!/tests/test_*.cpp
