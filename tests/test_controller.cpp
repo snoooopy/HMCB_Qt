@@ -65,6 +65,44 @@ private slots:
         c.shutdown();
     }
 
+    void measureXdifNeedsZeroThenProduces() {
+        // 对照 OnXDif：未 Zero 前不采集；Zero 后 X-DIF 完成并给出 VzX/X_dif
+        qRegisterMetaType<Mcb::McbFrame>("Mcb::McbFrame");
+        McbController c; c.setBackendMode("mock"); c.startUp();
+        std::atomic<bool> ready{false};
+        connect(&c, &McbController::deviceReady, this, [&]{ ready = true; });
+        c.initializeBackend();
+        QElapsedTimer t; t.start();
+        while (!ready && t.elapsed() < 2000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(ready, "no deviceReady within 2s");
+
+        MeasurementEngine::Config cfg = c.engine()->config();
+        cfg.vzSampleNum = 5;
+        c.engine()->applyConfig(cfg);
+
+        c.measureXdif();                 // 未做 Zero：只提示、不进入采集
+        qApp->processEvents(QEventLoop::AllEvents, 50);
+        QVERIFY(!c.engine()->bXdif(0));
+
+        int lastFn = -1; std::atomic<bool> measured{false};
+        connect(&c, &McbController::measurementReady, this,
+                [&](int fn) { lastFn = fn; measured = true; });
+        c.measure(0, 300);               // 先 Zero
+        t.restart();
+        while (!measured && t.elapsed() < 6000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(measured, "no measurementReady(0) within 6s");
+
+        measured = false;
+        c.measureXdif();                 // 再 X-DIF
+        t.restart();
+        while (!measured && t.elapsed() < 6000) qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(measured, "no measurementReady(4) within 6s");
+        QCOMPARE(lastFn, 4);
+        QVERIFY2(c.engine()->bXdif(0), "bXdif not set after fn=4");
+        QVERIFY2(!c.engine()->vzx(0).isEmpty(), "VzX empty after fn=4");
+        c.shutdown();
+    }
+
     void measureInlFullFlow() {
         qRegisterMetaType<Mcb::McbFrame>("Mcb::McbFrame");
         McbController c; c.setBackendMode("mock"); c.startUp();

@@ -218,7 +218,8 @@ void MainWindow::buildMenus() {
     connect(aVn,  &QAction::triggered, this, &MainWindow::onMeasureVnoise);
     connect(aVnd, &QAction::triggered, this, &MainWindow::onMeasureVnoiseD);
     connect(aInl, &QAction::triggered, this, &MainWindow::onMeasureInl);
-    measMenu->addAction(QStringLiteral("Diversity in X Ray"))->setEnabled(false);  // Phase 4
+    auto* aXdif = measMenu->addAction(QStringLiteral("Diversity in X Ray"));
+    connect(aXdif, &QAction::triggered, this, &MainWindow::onMeasureXdif);
     auto* aGain = measMenu->addAction(QStringLiteral("Gain automatic calibration"));
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
     measMenu->addSeparator();
@@ -289,7 +290,8 @@ void MainWindow::buildToolBar() {
     connect(aVnd, &QAction::triggered, this, &MainWindow::onMeasureVnoiseD);
     auto* aInl = tb->addAction(IC("inl"), QStringLiteral("INL"));
     connect(aInl, &QAction::triggered, this, &MainWindow::onMeasureInl);
-    tb->addAction(IC("xdif"), QStringLiteral("Diversity in X Ray"))->setEnabled(false); // Phase 4
+    auto* aXdifTb = tb->addAction(IC("xdif"), QStringLiteral("Diversity in X Ray"));
+    connect(aXdifTb, &QAction::triggered, this, &MainWindow::onMeasureXdif);
     auto* aGain = tb->addAction(IC("gain_calib"), QStringLiteral("Gain automatic calibration"));
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
     tb->addAction(m_aTestMode);
@@ -412,6 +414,10 @@ void MainWindow::onMeasureVnoiseD() {
 void MainWindow::onMeasureInl() {
     if (m_ctrl) { m_ctrl->measureInl(); m_log->appendMessage(QStringLiteral("开始 INL 测量…"), 0); }
 }
+void MainWindow::onMeasureXdif() {
+    // 日志由 Controller statusMessage 发（未做 Zero 时同样有提示）
+    if (m_ctrl) m_ctrl->measureXdif();
+}
 void MainWindow::onMeasureGain() {
     if (m_ctrl) { m_ctrl->measureGain(); m_log->appendMessage(QStringLiteral("开始增益自动校准…"), 0); }
 }
@@ -502,7 +508,7 @@ void MainWindow::setReadyGated(bool enabled) {
 void MainWindow::onSaveResult() {
     if (!m_ctrl || !m_ctrl->engine()) return;
     auto& eng = *m_ctrl->engine();   // 非 const：保存后要 clearResults()
-    if (!eng.bVzero(0) && !eng.bVnoise(0) && !eng.bInl(0)) {
+    if (!eng.bVzero(0) && !eng.bVnoise(0) && !eng.bInl(0) && !eng.bXdif(0)) {
         QMessageBox::information(this, QStringLiteral("提示"),
                                  QStringLiteral("尚无测量结果，请先执行 VZero/VNoise/INL。"));
         return;
@@ -521,7 +527,28 @@ void MainWindow::onSaveResult() {
     opt.adBit = cfg.adBit; opt.data2mV = cfg.data2mV;
     opt.hasVz = eng.bVzero(0); opt.hasVn = eng.bVnoise(0); opt.hasInl = eng.bInl(0);
     opt.inl = eng.inl(0); opt.diff = eng.inlDiff(0);
-    const int n = qMax(qMax(eng.vz(0).size(), eng.vn(0).size()), eng.inl(0).size());
+    opt.hasXdif = eng.bXdif(0);
+    opt.vzX = eng.vzx(0); opt.xDif = eng.xdif(0);
+    // aXptos 对照 MCB_TESTView:741-743：drange[rangeMode]/((1<<adBit)*0.996)/ddose，
+    // ddose=xdoserate/3600*intt/1e6。三参数读 MCBCtrl.ini（缺省同 Windows）
+    {
+        IniFile ini;
+        ini.setFileName(QCoreApplication::applicationDirPath()
+                        + QStringLiteral("/config/MCBCtrl.ini"));
+        const bool has = ini.readAll();
+        const double xdoserate = has ? ini.getString(
+            QStringLiteral("XRAY"), QStringLiteral("XDOSERATE"),
+            QStringLiteral("1.877e5")).toDouble() : 1.877e5;
+        const int intt = qMax(1, has ? ini.getInt(
+            QStringLiteral("MODE0"), QStringLiteral("INTT"), 400) : 400);
+        const int rangeMode = qBound(0, has ? ini.getInt(
+            QStringLiteral("RANGE0"), QStringLiteral("MCB0DM0"), 2) : 2, 7);
+        static const double drange[8] = {12.5, 50, 100, 150, 200, 250, 300, 350};
+        const double ddose = qMax(1.0, xdoserate) / 3600.0 * double(intt) / 1e6;
+        opt.aXptos = drange[rangeMode] / (std::pow(2.0, cfg.adBit) * 0.996) / ddose;
+    }
+    const int n = qMax(qMax(qMax(eng.vz(0).size(), eng.vn(0).size()), eng.inl(0).size()),
+                       eng.vzx(0).size());
 
     bool ok = false;
     {

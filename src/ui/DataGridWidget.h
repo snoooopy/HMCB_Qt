@@ -20,7 +20,7 @@ class DataGridWidget : public QWidget {
     Q_OBJECT
 public:
     enum class DisplayFormat { Hex, Dec, mV };
-    enum class DisplayMode { Raw, Vzero, Vnoise, Inl };
+    enum class DisplayMode { Raw, Vzero, VzeroX, Vnoise, Inl };
 
     explicit DataGridWidget(QWidget* parent = nullptr);
 
@@ -29,7 +29,7 @@ public:
 
     void setDisplayMode(DisplayMode m);
     DisplayMode displayMode() const { return m_mode; }
-    // 注入测量结果并切到 Vz/Vn 模式刷新（function: 0 Zero 1/3 Noise）
+    // 注入测量结果并切到 Vz/VzX/Vn 模式刷新（function: 0 Zero 1/3 Noise 4 X-DIF）
     void showMeasurement(const MeasurementEngine* eng, int nMCB, int function);
 
     void setThresholds(uint32_t lo, uint32_t hi);  // 着色区间（闭区间内=通过色）

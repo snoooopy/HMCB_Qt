@@ -110,10 +110,22 @@ void McbController::stop() {
 void McbController::measure(int function, uint32_t sampleCount) {
     if (!m_be || !m_engine) return;
     m_measFn = function;
-    const int N = (function == 0)
+    // fn=4 与 Zero 共路：同采 vzSampleNum 帧（Windows m_nFunction==0||==4）
+    const int N = (function == 0 || function == 4)
         ? m_engine->config().vzSampleNum
         : m_engine->config().vnSampleNum;
     start(static_cast<uint32_t>(N > 0 ? N : (int)sampleCount));
+}
+
+// 对照 OnXDif：先 Zero 建基线，再采一轮算 VzX/X_dif
+void McbController::measureXdif() {
+    if (!m_be || !m_engine) return;
+    if (!m_engine->bVzero(0)) {   // Windows 使能条件含 m_DataInfo.bVzero
+        emit statusMessage(QStringLiteral("[MCB0] 请先执行 Zero 测量建立基线"), 1);
+        return;
+    }
+    emit statusMessage(QStringLiteral("[MCB0] X-DIF 测量开始"), 0);
+    measure(4, 0);
 }
 
 void McbController::measureInl() {
@@ -133,9 +145,10 @@ void McbController::measureInl() {
 void McbController::handleStopok(bool natural) {
     if (m_measFn == 2) { handleInlStop(natural); return; }
     if (m_measFn == 6) { handleGainStop(natural); return; }
-    if (m_measFn >= 0 && m_engine) {          // fn 0/1/3：两种停都计算（Phase 2 行为）
-        if (m_measFn == 0) m_engine->calcZero(0);
-        else               m_engine->calcNoise(0);   // Noise / NoiseD 同算 FWHM
+    if (m_measFn >= 0 && m_engine) {          // fn 0/1/3/4：两种停都计算（Phase 2 行为）
+        if (m_measFn == 0)      m_engine->calcZero(0);
+        else if (m_measFn == 4) m_engine->calcXdif(0);
+        else                    m_engine->calcNoise(0);   // Noise / NoiseD 同算 FWHM
         const int fn = m_measFn;
         m_measFn = -1;
         emit measurementReady(fn);

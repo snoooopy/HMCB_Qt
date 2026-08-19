@@ -131,6 +131,57 @@ private slots:
         QVERIFY(!e.bVzero(0) && !e.bVnoise(0) && !e.bInl(0));
     }
 
+    // ---- Phase 4-5: X-DIF ----
+    void xdifFromBaseline() {
+        // 对照 VzeroCal fn==4：VzX=本轮均值−Vz 基线（净信号）；
+        // X_dif=每 16 通道组 |max−min|/2/组均值（MCB_TESTView 2985 行）
+        MeasurementEngine e;
+        const int nChn = 64;                     // 4 组 ×16 通道
+        for (int i = 0; i < 10; ++i)
+            e.appendFrame(0, QVector<uint32_t>(nChn, 1000));
+        QVERIFY(e.calcZero(0));                  // 基线 = 1000
+        QVERIFY(!e.bXdif(0));
+
+        QVector<uint32_t> ray(nChn);
+        for (int k = 0; k < nChn; ++k) {
+            const int g = k / 16, j = k % 16;
+            int delta = 0;                       // 组 3：恒 0 → 分母 0 保护
+            if (g == 0)      delta = j;          // 组 0：0..15 → dif=1.0
+            else if (g == 1) delta = 100;        // 组 1：恒定 → dif=0
+            else if (g == 2) delta = 10 + 2 * j; // 组 2：10..40 → dif=15/25=0.6
+            ray[k] = uint32_t(1000 + delta);
+        }
+        for (int i = 0; i < 1100; ++i) e.appendFrame(0, ray);   // >1024：窗口全为新帧
+        QVERIFY(e.calcXdif(0));
+        QVERIFY(e.bXdif(0));
+        QCOMPARE(e.vzx(0).size(), nChn);
+        QCOMPARE(e.vzx(0)[0], 0.0);
+        QCOMPARE(e.vzx(0)[1], 1.0);
+        QCOMPARE(e.vzx(0)[16], 100.0);
+        QCOMPARE(e.vzx(0)[32], 10.0);
+        QCOMPARE(e.vzx(0)[63], 0.0);
+        QCOMPARE(e.xdif(0).size(), nChn / 16);
+        QCOMPARE(e.xdif(0)[0], 1.0);             // (15−0)/2 / 7.5
+        QCOMPARE(e.xdif(0)[1], 0.0);
+        QCOMPARE(e.xdif(0)[2], 0.6);             // (40−10)/2 / 25
+        QCOMPARE(e.xdif(0)[3], 0.0);             // 全 0 组 → 0（Windows 会 NaN，这里钳 0）
+        // 未覆盖满 16 通道的尾巴（nChn 非 16 倍数）不计组
+        QVERIFY(e.calcZero(0));                  // 基线仍在，可再次 X-DIF
+    }
+
+    void xdifNeedsBaseline() {
+        // Windows 使能条件 !bVzero 拦截：须先 Zero
+        MeasurementEngine e;
+        QVector<uint32_t> f(16, 5);
+        for (int i = 0; i < 8; ++i) e.appendFrame(0, f);
+        QVERIFY(!e.calcXdif(0));                 // 未做 Zero
+        QVERIFY(e.calcZero(0));
+        e.reset(0);                              // reset 作废基线与结果
+        e.appendFrame(0, f);
+        QVERIFY(!e.calcXdif(0));
+        QVERIFY(!e.bXdif(0));
+    }
+
     void concurrentAppendRead() {
         // 回归保护：appendFrame 在工作线程跑、latestFrame/rms256 在 GUI 线程读
         // （GraphView 400ms 定时器）。帧内所有通道填同一标记值，读到的任一帧

@@ -51,8 +51,13 @@ public:
     QVector<uint32_t> latestFrame(int nMCB) const;
 
     bool calcZero(int nMCB);                 // 写 m_vz[nMCB]，成功 true
+    // fn=4（X-DIF）：VzX=本轮均值−Vz 基线（须先 calcZero）；
+    // X_dif=每 16 通道组 |max−min|/2/均值（对照 VzeroCal+2977 段）
+    bool calcXdif(int nMCB);
     bool calcNoise(int nMCB);                // 写 m_vn[nMCB]，帧数<200 返回 false
     const QVector<double>& vz(int nMCB) const { return m_vz[nMCB & 7]; }
+    const QVector<double>& vzx(int nMCB) const { return m_vzx[nMCB & 7]; }   // X-DIF 净信号
+    const QVector<double>& xdif(int nMCB) const { return m_xdif[nMCB & 7]; } // 每 16 通道一组
     const QVector<NoiseChan>& vn(int nMCB) const { return m_vn[nMCB & 7]; }
 
     QVector<double> rms256(int nMCB) const;  // 逐通道最近 256 帧总体标准差（波形 RMS 用）
@@ -72,6 +77,7 @@ public:
     const QVector<double>& inlDiff(int nMCB) const { return m_diff[nMCB & 7]; }
     bool bInl(int nMCB) const    { return m_bInl[nMCB & 7]; }
     bool bVzero(int nMCB) const  { return m_bVzero[nMCB & 7]; }
+    bool bXdif(int nMCB) const   { return m_bXdif[nMCB & 7]; }
     bool bVnoise(int nMCB) const { return m_bVnoise[nMCB & 7]; }
 
     static double toDisplayFormat(double fwhm, int fmt, int adBit);
@@ -89,13 +95,15 @@ private:
     QVector<uint32_t> m_latest[MAX_MCB];
     int m_count[MAX_MCB]{};
     QVector<double> m_vz[MAX_MCB];
+    QVector<double> m_vzx[MAX_MCB];               // X-DIF：VzX（本轮均值−基线）
+    QVector<double> m_xdif[MAX_MCB];              // X-DIF：每 16 通道组指标
     QVector<NoiseChan> m_vn[MAX_MCB];
     // INL：x 轴全局一份；y/结果按板
     QVector<double> m_inlVin;
     QVector<QVector<double>> m_inlY[MAX_MCB];   // [板][点][通道] y(mV)
     QVector<double> m_inlA[MAX_MCB], m_inlB[MAX_MCB], m_inlR[MAX_MCB];
     QVector<double> m_inl[MAX_MCB], m_diff[MAX_MCB];
-    bool m_bInl[MAX_MCB]{}, m_bVzero[MAX_MCB]{}, m_bVnoise[MAX_MCB]{};
+    bool m_bInl[MAX_MCB]{}, m_bVzero[MAX_MCB]{}, m_bVnoise[MAX_MCB]{}, m_bXdif[MAX_MCB]{};
     uint32_t m_inlStep = 0;
     int m_inlPoints = 0;
 

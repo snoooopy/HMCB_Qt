@@ -100,6 +100,7 @@ void DataGridWidget::showMeasurement(const MeasurementEngine* eng, int nMCB, int
     m_inlSub = 0;
     m_mode = (function == 0) ? DisplayMode::Vzero
             : (function == 2) ? DisplayMode::Inl
+            : (function == 4) ? DisplayMode::VzeroX   // X-DIF 显示净信号 VzX
             : DisplayMode::Vnoise;
     refreshHeader();
     refreshCurrent();
@@ -250,8 +251,10 @@ void DataGridWidget::refreshMeasurement() {
             if (!it) continue;
             const int idx = module * m_rows + r;
             double value = 0; double lo = 0, hi = 0;
-            if (m_mode == DisplayMode::Vzero) {
-                const auto& z = m_eng->vz(m_measMCB);
+            if (m_mode == DisplayMode::Vzero || m_mode == DisplayMode::VzeroX) {
+                // X-DIF 显示 VzX（净信号，可负），格式与 Vzero 同（HEX/DEC/mV）
+                const auto& z = (m_mode == DisplayMode::VzeroX)
+                              ? m_eng->vzx(m_measMCB) : m_eng->vz(m_measMCB);
                 if (idx >= z.size()) { it->setText(QString()); continue; }
                 value = (cfg.vzFormat == 1) ? z[idx] / cfg.data2mV : z[idx];
                 lo = cfg.vzMin; hi = cfg.vzMax;

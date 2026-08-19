@@ -36,6 +36,7 @@ private slots:
     void onMeasureVnoise();      // function=1
     void onMeasureVnoiseD();     // function=3
     void onMeasureInl();         // function=2
+    void onMeasureXdif();        // function=4（须先 Zero）
     void onMeasureGain();        // function=6
     void onSaveResult();
     void onMeasurementReady(int function);

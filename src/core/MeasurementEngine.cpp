@@ -16,7 +16,9 @@ void MeasurementEngine::reset(int nMCB) {
     m_count[i] = 0;
     m_vz[i].clear();
     m_vn[i].clear();
-    m_bVzero[i] = m_bVnoise[i] = m_bInl[i] = false;  // 新测量开始作废旧标志
+    m_vzx[i].clear();
+    m_xdif[i].clear();
+    m_bVzero[i] = m_bVnoise[i] = m_bInl[i] = m_bXdif[i] = false;  // 新测量开始作废旧标志
 }
 
 void MeasurementEngine::appendFrame(int nMCB, const QVector<uint32_t>& channels) {
@@ -72,6 +74,39 @@ bool MeasurementEngine::calcZero(int nMCB) {
         m_vz[i][k] = sum / N;
     }
     m_bVzero[i] = true;
+    return true;
+}
+
+// 对照 VzeroCal:2901/2936（fn==4 分支）+ 2977-2987 段：VzX=本轮均值−Vz 基线，
+// X_dif=每 16 通道组 |max−min|/2/(组均值)。组均值 0 时钳 0（Windows 会出 NaN）。
+bool MeasurementEngine::calcXdif(int nMCB) {
+    int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
+    const int nChn = m_latest[i].size();
+    if (nChn == 0 || m_ring[i].isEmpty()) return false;
+    if (!m_bVzero[i] || m_vz[i].size() != nChn) return false;   // 须先 Zero（!bVzero 拦截）
+    const int N = std::min(1024, (int)m_ring[i].size());
+    const int start = m_ring[i].size() - N;
+    m_vzx[i].fill(0.0, nChn);
+    for (int k = 0; k < nChn; ++k) {
+        double sum = 0;
+        for (int f = start; f < (int)m_ring[i].size(); ++f)
+            sum += m_ring[i][f].value(k);
+        m_vzx[i][k] = sum / N - m_vz[i][k];                      // 净信号
+    }
+    m_xdif[i].fill(0.0, nChn / 16);
+    for (int g = 0; g < nChn / 16; ++g) {
+        double dmax = 0, dmin = 0, sa = 0;
+        for (int j = g * 16; j < (g + 1) * 16; ++j) {
+            const double v = m_vzx[i][j];
+            if (j == g * 16) dmax = dmin = v;
+            else { dmax = std::max(dmax, v); dmin = std::min(dmin, v); }
+            sa += v;
+        }
+        const double mean = sa / 16.0;
+        m_xdif[i][g] = mean != 0.0 ? std::fabs((dmax - dmin) / 2.0 / mean) : 0.0;
+    }
+    m_bXdif[i] = true;
     return true;
 }
 
@@ -222,8 +257,9 @@ bool MeasurementEngine::calcInl(int nMCB, int channelsPerDm) {
 void MeasurementEngine::clearResults() {
     for (int i = 0; i < MAX_MCB; ++i) {
         m_vz[i].clear(); m_vn[i].clear();
+        m_vzx[i].clear(); m_xdif[i].clear();
         m_inlY[i].clear(); m_inlA[i].clear(); m_inlB[i].clear();
         m_inlR[i].clear(); m_inl[i].clear(); m_diff[i].clear();
-        m_bVzero[i] = m_bVnoise[i] = m_bInl[i] = false;
+        m_bVzero[i] = m_bVnoise[i] = m_bInl[i] = m_bXdif[i] = false;
     }
 }
