@@ -70,6 +70,11 @@ void RealMcbBackend::setDmRange(const QVector<uint8_t>& range65) {
     if (range65.size() < 65) return;   // 须停止态发送，否则库报 0x1110
     SetMCBCommand(MCB_CMD_SETRANGE, reinterpret_cast<LPARAM>(range65.constData()));
 }
+void RealMcbBackend::setDm2TypeRange(const QVector<uint8_t>& range65) {
+    // 对照 Windows OnSetdm2range：[板号][类型0×nDMNum][类型1×nDMNum]
+    if (range65.size() < 1) return;
+    SetMCBCommand(MCB_CMD_SET2TYPERANGE, reinterpret_cast<LPARAM>(range65.constData()));
+}
 void RealMcbBackend::setNewIp(const quint8 addr[12]) {
     // 对照 Windows DlgSetNewIPAddress：LPARAM 指向 IP4+掩码4+网关4；
     // 结果经 MCB_MSG_STATUS 回 0x1121 RUN / 0x1122 ERR / 0x1123 OK

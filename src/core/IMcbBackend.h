@@ -36,6 +36,10 @@ public:
     virtual void setDa(uint32_t da32) = 0;                     // MCB_CMD_AOUTDASET：param=(基线<<16)|电平
     virtual void setDmRange(const QVector<uint8_t>& range65) = 0; // MCB_CMD_SETRANGE：[0]=板号,[1+j]=DM j 档
 
+    // Phase 4：双类型档（MCB_CMD_SET2TYPERANGE）：[0]=板号,
+    // [1+j]=类型0档、[1+nDMNum+j]=类型1档（各 nDMNum 个）
+    virtual void setDm2TypeRange(const QVector<uint8_t>& range65) = 0;
+
     // Phase 4：设新 IP（MCB_CMD_SETNEWIP=0x0601）：12 字节 = IP4+子网掩码4+网关4
     virtual void setNewIp(const quint8 addr[12]) = 0;
 

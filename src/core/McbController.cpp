@@ -6,6 +6,7 @@
 #include "XmlGainWriter.h"
 #include <QDir>
 #include <QTimer>
+#include <cstring>
 #include <QCoreApplication>
 #include <cmath>
 
@@ -259,6 +260,11 @@ QVector<uint8_t> McbController::dmGainValues(int nMCB) const {
     return b.isEmpty() ? QVector<uint8_t>() : b.mid(1);
 }
 
+QVector<uint8_t> McbController::dm2TypeValues(int nMCB) const {
+    const auto& b = m_dm2TypeBoard[nMCB & 7];
+    return b.isEmpty() ? QVector<uint8_t>() : b.mid(1);
+}
+
 void McbController::setTrigger(int mode)        { if (m_be) m_be->setTrigger(mode); }
 void McbController::setRangeMode(int range)     { if (m_be) m_be->setRangeMode(range); }
 void McbController::setTestMode(bool on)        { if (m_be) m_be->setTestMode(on); }
@@ -284,6 +290,65 @@ void McbController::dumpEepromKeyData()   { if (m_be) m_be->dumpEepromKeyData();
 void McbController::dumpAllEcsRegisters() { if (m_be) m_be->dumpAllEcsRegisters(); }
 void McbController::setPotmtZero()        { if (m_be) m_be->setPotmt(0); }
 void McbController::setInttZero()         { if (m_be) m_be->setIntt(0); }
+
+void McbController::setDmRangeFromIni() {
+    // 对照 Windows OnSetdmrange：重读 MCBCtrl.ini [RANGE0] MCB{i}DM{j}（0..7，
+    // 缺省沿上一值、初始 7）组 65 字节发 SETRANGE
+    if (!m_be) return;
+    IniFile ini;
+    ini.setFileName(m_gainIniPath.isEmpty()
+        ? QCoreApplication::applicationDirPath() + QStringLiteral("/config/MCBCtrl.ini")
+        : m_gainIniPath);
+    if (!ini.readAll()) {
+        emit statusMessage(QStringLiteral("[MCB0] Set DM Range: 读取 MCBCtrl.ini 失败"), 0);
+        return;
+    }
+    const uint32_t n = m_be->getMcbNum();
+    for (uint32_t i = 0; i < n && i < MeasurementEngine::MAX_MCB; ++i) {
+        QVector<uint8_t>& c = m_dmGainBoard[i];
+        if (c.size() < 65) c = QVector<uint8_t>(65, 7);
+        c[0] = static_cast<uint8_t>(i);
+        uint8_t range = 7;                          // Windows：沿上一值，初始 MAX_DDCRANGE
+        for (int j = 0; j < 64; ++j) {
+            const int v = ini.getInt(QStringLiteral("RANGE0"),
+                                    QStringLiteral("MCB%1DM%2").arg(i).arg(j), range);
+            range = static_cast<uint8_t>(qBound(0, v, 7));
+            c[1 + j] = range;
+        }
+        m_be->setDmRange(c);
+    }
+    emit statusMessage(QStringLiteral("[MCB0] Set DM Range: 已按 MCBCtrl.ini [RANGE0] 下发"), 0);
+}
+
+void McbController::setDm2TypeRangeFromIni(const QString& testIniPath) {
+    // 对照 Windows OnSetdm2range：读 MCB_TEST.ini [SETRANGE] MCB{i}DM_0/DM_1，
+    // 组 [板号][类型0×nDMNum][类型1×nDMNum] 发 SET2TYPERANGE
+    if (!m_be) return;
+    IniFile ini;
+    ini.setFileName(testIniPath.isEmpty()
+        ? QCoreApplication::applicationDirPath() + QStringLiteral("/config/MCB_TEST.ini")
+        : testIniPath);
+    if (!ini.readAll()) {
+        emit statusMessage(QStringLiteral("[MCB0] Set DM 2 Types Range: 读取 MCB_TEST.ini 失败"), 0);
+        return;
+    }
+    const uint32_t n = m_be->getMcbNum();
+    for (uint32_t i = 0; i < n && i < MeasurementEngine::MAX_MCB; ++i) {
+        const int nDm = m_be->getDmInfo(static_cast<int>(i)).nDMNum;
+        if (nDm <= 0) continue;
+        QVector<uint8_t>& c = m_dm2TypeBoard[i];
+        c.resize(1 + 2 * nDm);
+        c[0] = static_cast<uint8_t>(i);
+        const uint8_t r0 = static_cast<uint8_t>(ini.getInt(
+            QStringLiteral("SETRANGE"), QStringLiteral("MCB%1DM_0").arg(i), 1));
+        const uint8_t r1 = static_cast<uint8_t>(ini.getInt(
+            QStringLiteral("SETRANGE"), QStringLiteral("MCB%1DM_1").arg(i), 2));
+        memset(&c.data()[1], r0, nDm);              // Windows memset 语义：整段同档
+        memset(&c.data()[1 + nDm], r1, nDm);
+        m_be->setDm2TypeRange(c);
+    }
+    emit statusMessage(QStringLiteral("[MCB0] Set DM 2 Types Range: 已按 MCB_TEST.ini [SETRANGE] 下发"), 0);
+}
 
 DMINFO    McbController::getDmInfo(int nMCB) { return m_be ? m_be->getDmInfo(nMCB) : DMINFO{}; }
 uint32_t  McbController::getMcbNum()         { return m_be ? m_be->getMcbNum() : 0; }

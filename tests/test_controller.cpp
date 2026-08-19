@@ -151,6 +151,50 @@ private slots:
         QVERIFY(c.setNewIp("192.111.111.212", "255.255.255.0", "192.111.111.1"));
         c.shutdown();
     }
+
+    void dmRangeFromIniRoundTrip() {
+        // 对照 Windows OnSetdmrange：读 MCBCtrl.ini [RANGE0] MCB{i}DM{j}（0..7）
+        // 组 65 字节（[0]=板号）发 SETRANGE
+        QTemporaryDir dir;
+        QFile f(dir.path() + "/MCBCtrl.ini");
+        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        f.write("[RANGE0]\nMCB0DM0=3\nMCB0DM1=5\n");    // 其余缺省=沿上一值(初始 7)
+        f.close();
+
+        McbController c;
+        c.setBackendMode("mock");
+        c.startUp();
+        c.setGainWritePaths(dir.path() + "/MCBCtrl.ini", dir.path() + "/DIASConfig.xml");
+        c.setDmRangeFromIni();
+        const auto r = c.dmGainValues(0);                // 去板号的 64 档
+        QVERIFY(r.size() >= 25);
+        QCOMPARE(r.at(0), uint8_t(3));
+        QCOMPARE(r.at(1), uint8_t(5));
+        QCOMPARE(r.at(2), uint8_t(5));                   // 未配置沿上一 DM 的值（Windows GetInt 缺省=当前 range）
+        c.shutdown();
+    }
+
+    void dm2TypeRangeFromIniRoundTrip() {
+        // 对照 Windows OnSetdm2range：读 MCB_TEST.ini [SETRANGE] MCB{i}DM_0/DM_1，
+        // 组 [板号][类型0×nDMNum][类型1×nDMNum] 发 SET2TYPERANGE
+        QTemporaryDir dir;
+        QFile f(dir.path() + "/MCB_TEST.ini");
+        QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Text));
+        f.write("[SETRANGE]\nMCB0DM_0=1\nMCB0DM_1=2\n");
+        f.close();
+
+        McbController c;
+        c.setBackendMode("mock");
+        c.startUp();
+        c.setDm2TypeRangeFromIni(dir.path() + "/MCB_TEST.ini");
+        const auto r = c.dm2TypeValues(0);               // 2×nDMNum 档
+        QCOMPARE(r.size(), 2 * 25);                       // Mock 几何 nDMNum=25
+        QCOMPARE(r.at(0), uint8_t(1));
+        QCOMPARE(r.at(24), uint8_t(1));
+        QCOMPARE(r.at(25), uint8_t(2));
+        QCOMPARE(r.at(49), uint8_t(2));
+        c.shutdown();
+    }
 };
 
 QTEST_GUILESS_MAIN(TestController)

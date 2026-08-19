@@ -34,6 +34,12 @@ public:
         m_rangeSet = true;                                                   // 增益模型接管
     }
 
+    void setDm2TypeRange(const QVector<uint8_t>& range65) override {
+        if (range65.size() < 1 + 2 * m_dmNum) return;
+        m_dm2TypeRange = range65.mid(1, 2 * m_dmNum);
+    }
+    QVector<uint8_t> dm2TypeRange() const { return m_dm2TypeRange; }   // 测试断言用
+
     void setNewIp(const quint8 addr[12]) override {
         m_lastNewIp.clear();
         for (int i = 0; i < 12; ++i) m_lastNewIp.append(addr[i]);
@@ -72,6 +78,7 @@ private:
 
     uint32_t m_da = 0;                    // 最近 AOUTDASET 32bit 码
     QVector<uint8_t> m_dmGainRange;       // 每 DM 档位（0..7）
+    QVector<uint8_t> m_dm2TypeRange;      // 双类型档（2×nDMNum）
     QVector<double> m_dmAmp;              // 每 DM 基础幅度（20bit 域）
     bool m_rangeSet = false;              // 最后设置的控制生效：setDa 清 / setDmRange 置
     QVector<uint8_t> m_lastNewIp;         // 最近一次 setNewIp 的 12 字节

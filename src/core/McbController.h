@@ -39,11 +39,14 @@ public slots:
     void dumpAllEcsRegisters();      // Tools→Dump All ECS Registers
     void setPotmtZero();             // Measure→SetPOTMT（Windows 固定发 0）
     void setInttZero();              // Measure→Set INTT（Windows 固定发 0）
+    void setDmRangeFromIni();        // Measure→Set DM Range：重读 MCBCtrl.ini [RANGE0] 下发
+    void setDm2TypeRangeFromIni(const QString& testIniPath = QString());  // Measure→Set DM 2 Types Range
 
     MeasurementEngine* engine() { return m_engine.get(); }
 
     void setGainWritePaths(const QString& iniPath, const QString& xmlPath);  // 测试注入临时目录
     QVector<uint8_t> dmGainValues(int nMCB) const;   // 该板各 DM 档位（去板号字节）
+    QVector<uint8_t> dm2TypeValues(int nMCB) const;  // 该板双类型档（2×nDMNum）
 
     // 同步查询
     DMINFO getDmInfo(int nMCB);
@@ -84,5 +87,6 @@ private:
     int m_chPerDm = 128;
     int m_gainStep = 0;
     QVector<uint8_t> m_dmGainBoard[MeasurementEngine::MAX_MCB];   // 65 字节/板：[0]=板号，[1+j]=DM j 档
+    QVector<uint8_t> m_dm2TypeBoard[MeasurementEngine::MAX_MCB];  // 1+2nDMNum 字节/板（SET2TYPERANGE）
     QString m_gainIniPath, m_gainXmlPath;
 };

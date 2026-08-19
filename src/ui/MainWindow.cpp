@@ -219,14 +219,17 @@ void MainWindow::buildMenus() {
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
     measMenu->addSeparator();
     measMenu->addAction(m_aTestMode);
-    measMenu->addAction(QStringLiteral("Set DM Range"))->setEnabled(false);         // Phase 4
-    measMenu->addAction(QStringLiteral("Set DM 2 Types Range"))->setEnabled(false); // Phase 4
+    auto* aSetDmRange = measMenu->addAction(QStringLiteral("Set DM Range"));
+    connect(aSetDmRange, &QAction::triggered, this, &MainWindow::onSetDmRange);
+    auto* aSetDm2 = measMenu->addAction(QStringLiteral("Set DM 2 Types Range"));
+    connect(aSetDm2, &QAction::triggered, this, &MainWindow::onSetDm2Range);
+    m_readyGateActions += { aSetDmRange, aSetDm2 };   // Windows: !start&&ready&&!FND
     measMenu->addAction(m_aSendAll);
     auto* aPotmt = measMenu->addAction(QStringLiteral("SetPOTMT"));
     connect(aPotmt, &QAction::triggered, this, &MainWindow::onSetPotmt);
     auto* aIntt = measMenu->addAction(QStringLiteral("Set INTT"));
     connect(aIntt, &QAction::triggered, this, &MainWindow::onSetIntt);
-    m_readyGateActions = { aPotmt, aIntt };   // Windows: Enable(!m_bStart && m_bDVReady)
+    m_readyGateActions += { aPotmt, aIntt };   // Windows: Enable(!m_bStart && m_bDVReady)
     measMenu->addSeparator();
     // .rc 中 "&&" 转义为显示 "&"
     measMenu->addAction(QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
@@ -445,6 +448,8 @@ void MainWindow::onDumpEeprom()       { m_ctrl->dumpEepromKeyData(); }
 void MainWindow::onDumpEcsRegisters() { m_ctrl->dumpAllEcsRegisters(); }
 void MainWindow::onSetPotmt()         { m_ctrl->setPotmtZero(); }
 void MainWindow::onSetIntt()          { m_ctrl->setInttZero(); }
+void MainWindow::onSetDmRange()       { m_ctrl->setDmRangeFromIni(); }
+void MainWindow::onSetDm2Range()      { m_ctrl->setDm2TypeRangeFromIni(); }
 
 // Windows Enable(!m_bStart && m_bDVReady)：就绪后开，采集期间关
 void MainWindow::setReadyGated(bool enabled) {
