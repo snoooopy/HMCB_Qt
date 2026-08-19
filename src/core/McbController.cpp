@@ -267,6 +267,19 @@ void McbController::setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt) {
     if (m_be) m_be->setTiming(potmt, potmw, intt);
 }
 
+bool McbController::setNewIp(const QString& ip, const QString& mask, const QString& gateway) {
+    if (!m_be) return false;
+    quint8 addr[12];
+    if (!Mcb::parseIpv4(ip, addr) || !Mcb::parseIpv4(mask, addr + 4) ||
+        !Mcb::parseIpv4(gateway, addr + 8)) {
+        emit statusMessage(QStringLiteral("SETNEWIP: invalid IP address"), 0);
+        return false;
+    }
+    m_be->setNewIp(addr);
+    emit statusMessage(QStringLiteral("SETNEWIP: command sent, wait for SETNEWIPRUN/OK/ERR"), 0);
+    return true;
+}
+
 DMINFO    McbController::getDmInfo(int nMCB) { return m_be ? m_be->getDmInfo(nMCB) : DMINFO{}; }
 uint32_t  McbController::getMcbNum()         { return m_be ? m_be->getMcbNum() : 0; }
 bool      McbController::getRunStatus()      { return m_be ? m_be->getRunStatus() : false; }

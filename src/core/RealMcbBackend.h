@@ -23,6 +23,7 @@ public:
 
     void setDa(uint32_t da32) override;
     void setDmRange(const QVector<uint8_t>& range65) override;
+    void setNewIp(const quint8 addr[12]) override;
 
     uint32_t getMcbNum() override;
     bool getDeviceReady() override;

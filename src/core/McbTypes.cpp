@@ -27,9 +27,24 @@ QString statusCodeStr(uint32_t code) {
         {0x0200, "MBFPGACFG_OK"},{0x0201, "ADFPGACFG_OK"}, {0x0204, "REGSET_OK"},
         {0x0210, "FPGAFILE_ERR"},{0x0211, "MBFPGACFG_ERR"},{0x0214, "REGSET_ERR"},
         {0x0300, "STARTOK"},     {0x1123, "SETNEWIP_OK"},  {0x1122, "SETNEWIP_ERR"},
-        {0x1303, "NODATA"},      {0x1400, "SCNTPCNTDIFF"}
+        {0x1121, "SETNEWIPRUN"}, {0x1303, "NODATA"},        {0x1400, "SCNTPCNTDIFF"}
     };
     return m.value(code, QStringLiteral("CODE_%1").arg(code, 4, 16, QChar('0')));
+}
+
+bool parseIpv4(const QString& text, quint8 out[4]) {
+    const QStringList parts = text.split('.');
+    if (parts.size() != 4) return false;
+    for (int i = 0; i < 4; ++i) {
+        const QString& p = parts.at(i);
+        if (p.isEmpty() || p.size() > 3) return false;
+        for (const QChar& ch : p)
+            if (ch < '0' || ch > '9') return false;
+        const int v = p.toInt();          // 纯数字已保证，无符号问题
+        if (v > 255) return false;
+        out[i] = static_cast<quint8>(v);
+    }
+    return true;
 }
 
 } // namespace Mcb

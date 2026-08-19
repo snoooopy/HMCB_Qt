@@ -36,6 +36,9 @@ public:
     virtual void setDa(uint32_t da32) = 0;                     // MCB_CMD_AOUTDASET：param=(基线<<16)|电平
     virtual void setDmRange(const QVector<uint8_t>& range65) = 0; // MCB_CMD_SETRANGE：[0]=板号,[1+j]=DM j 档
 
+    // Phase 4：设新 IP（MCB_CMD_SETNEWIP=0x0601）：12 字节 = IP4+子网掩码4+网关4
+    virtual void setNewIp(const quint8 addr[12]) = 0;
+
     // 同步查询（短暂阻塞，经返回值给出）
     virtual uint32_t getMcbNum() = 0;
     virtual bool getDeviceReady() = 0;

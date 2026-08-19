@@ -26,6 +26,9 @@ struct McbFrame {
 QString statusCategoryStr(WPARAM category);
 QString statusCodeStr(uint32_t code);
 
+// "a.b.c.d" → 4 字节（段数=4、纯数字、每段 0..255）；Set New IP 用
+bool parseIpv4(const QString& text, quint8 out[4]);
+
 } // namespace Mcb
 
 Q_DECLARE_METATYPE(Mcb::McbFrame)

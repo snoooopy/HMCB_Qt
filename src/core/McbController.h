@@ -34,6 +34,7 @@ public slots:
     void measure(int function, uint32_t sampleCount);   // 0 Zero 1 Noise 3 NoiseD
     void measureInl();     // function=2：INL 多点 DA 扫描
     void measureGain();    // function=6：增益自动校准（迭代升档 + 写回）
+    bool setNewIp(const QString& ip, const QString& mask, const QString& gateway);  // Tools→Set New IP
 
     MeasurementEngine* engine() { return m_engine.get(); }
 

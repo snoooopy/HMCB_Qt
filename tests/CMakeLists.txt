@@ -70,3 +70,11 @@ target_link_libraries(test_datagrid PRIVATE Qt6::Test Qt6::Widgets)
 target_include_directories(test_datagrid PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME datagrid COMMAND test_datagrid)
 set_tests_properties(datagrid PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ---- test_setipdialog：Set New IP 对话框文案/回读/IPv4 验证器（offscreen QWidget）----
+qt_add_executable(test_setipdialog test_setipdialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/SetIpDialog.cpp)
+target_link_libraries(test_setipdialog PRIVATE Qt6::Test Qt6::Widgets)
+target_include_directories(test_setipdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME setipdialog COMMAND test_setipdialog)
+set_tests_properties(setipdialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

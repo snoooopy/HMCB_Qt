@@ -129,6 +129,28 @@ private slots:
         QVERIFY(c.dmGainValues(0).size() >= 25);
         c.shutdown();
     }
+
+    void setNewIpValidates() {
+        // 对照 Windows：DlgSetNewIPAddress OK → 12 字节 → MCB_CMD_SETNEWIP(0x0601)
+        McbController c;
+        c.setBackendMode("mock");
+        c.startUp();
+
+        QStringList msgs;
+        connect(&c, &McbController::statusMessage, this,
+                [&](const QString& s, int) { msgs.append(s); });
+
+        // 非法地址：拒绝下发，给出错误消息
+        QVERIFY(!c.setNewIp("999.1.1.1", "255.255.255.0", "192.111.111.1"));
+        qApp->processEvents(QEventLoop::AllEvents, 20);
+        QVERIFY2(!msgs.isEmpty(), "no error message for invalid IP");
+        QVERIFY(msgs.first().contains("SETNEWIP", Qt::CaseInsensitive));
+
+        // 合法地址：接受
+        msgs.clear();
+        QVERIFY(c.setNewIp("192.111.111.212", "255.255.255.0", "192.111.111.1"));
+        c.shutdown();
+    }
 };
 
 QTEST_GUILESS_MAIN(TestController)

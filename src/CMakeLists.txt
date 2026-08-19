@@ -36,6 +36,8 @@ set(APP_SOURCES
     ui/OneModuleView.cpp
     ui/GainCalibResultDialog.h
     ui/GainCalibResultDialog.cpp
+    ui/SetIpDialog.h
+    ui/SetIpDialog.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES} ui/app.qrc)

@@ -34,6 +34,12 @@ public:
         m_rangeSet = true;                                                   // 增益模型接管
     }
 
+    void setNewIp(const quint8 addr[12]) override {
+        m_lastNewIp.clear();
+        for (int i = 0; i < 12; ++i) m_lastNewIp.append(addr[i]);
+    }
+    QVector<uint8_t> lastNewIp() const { return m_lastNewIp; }   // 测试断言用
+
     uint32_t getMcbNum() override { return 1; }
     bool getDeviceReady() override { return m_ready; }
     bool getRunStatus() override { return m_running; }
@@ -58,6 +64,7 @@ private:
     QVector<uint8_t> m_dmGainRange;       // 每 DM 档位（0..7）
     QVector<double> m_dmAmp;              // 每 DM 基础幅度（20bit 域）
     bool m_rangeSet = false;              // 最后设置的控制生效：setDa 清 / setDmRange 置
+    QVector<uint8_t> m_lastNewIp;         // 最近一次 setNewIp 的 12 字节
 
     void emitStatus(WPARAM cat, int nMCB, uint32_t code) {
         if (m_status) m_status(cat, nMCB, code);

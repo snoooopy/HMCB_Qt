@@ -39,6 +39,7 @@ private slots:
     void onSaveResult();
     void onMeasurementReady(int function);
     void onGainCalibReady();
+    void onToolsSetNewIp();     // Tools→Set New IP（IDD_DIALOG_SETNEWIP）
 
 private:
     void buildActions();   // 共享 QAction（菜单与工具栏挂同一动作，同 MFC 同 ID）

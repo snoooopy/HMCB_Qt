@@ -145,6 +145,18 @@ private slots:
         QCOMPARE(lastCode.load(), 0);
         b.close();
     }
+
+    void setNewIpRecordsBytes() {
+        // 对照 Windows DlgSetNewIPAddress：IP4+掩码4+网关4 共 12 字节
+        MockMcbBackend b;
+        QVERIFY(b.lastNewIp().isEmpty());
+        const quint8 addr[12] = {192,111,111,212, 255,255,255,0, 192,111,111,1};
+        b.setNewIp(addr);
+        const auto got = b.lastNewIp();
+        QCOMPARE(got.size(), 12);
+        for (int i = 0; i < 12; ++i)
+            QCOMPARE(got.at(i), quint8(addr[i]));
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMockBackend)

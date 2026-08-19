@@ -7,9 +7,12 @@
 #include "core/McbController.h"
 #include "core/MeasurementEngine.h"
 #include "core/CsvResultWriter.h"
+#include "core/IniFile.h"
 #include "ui/GainCalibResultDialog.h"
+#include "ui/SetIpDialog.h"
 #include <QMenuBar>
 #include <QMenu>
+#include <QCoreApplication>
 #include <QToolBar>
 #include <QAction>
 #include <QActionGroup>
@@ -218,9 +221,10 @@ void MainWindow::buildMenus() {
     fnsMenu->addAction(QStringLiteral("Pulsed"))->setEnabled(false);                // Phase 4
     fnsMenu->addAction(QStringLiteral("Continued"))->setEnabled(false);             // Phase 4
 
-    // Tools（全部 Phase 4）
+    // Tools（Set New IP 已实现；其余 Phase 4）
     auto* toolsMenu = menuBar()->addMenu(QStringLiteral("Tools"));
-    toolsMenu->addAction(QStringLiteral("Set New IP"))->setEnabled(false);
+    auto* aSetIp = toolsMenu->addAction(QStringLiteral("Set New IP"));
+    connect(aSetIp, &QAction::triggered, this, &MainWindow::onToolsSetNewIp);
     toolsMenu->addAction(QStringLiteral("Dump EEPROM Key Data"))->setEnabled(false);
     toolsMenu->addAction(QStringLiteral("Dump All ECS Registers"))->setEnabled(false);
 
@@ -399,6 +403,21 @@ void MainWindow::onMeasurementReady(int function) {
     m_log->appendMessage(QStringLiteral("测量完成 (function=%1)").arg(function), 0);
     if (m_ctrl && m_ctrl->engine())
         m_grid->showMeasurement(m_ctrl->engine(), 0, function);
+}
+
+void MainWindow::onToolsSetNewIp() {
+    // 对照 Windows MCB_TESTView：初值 IP 读 MCBCtrl.ini [CONNECTION] IPADDR
+    IniFile ini;
+    ini.setFileName(QCoreApplication::applicationDirPath()
+                    + QStringLiteral("/config/MCBCtrl.ini"));
+    QString cur = QStringLiteral("192.111.111.211");
+    if (ini.readAll())
+        cur = ini.getString(QStringLiteral("CONNECTION"), QStringLiteral("IPADDR"), cur);
+
+    SetIpDialog dlg(this);
+    dlg.setAddresses(cur, QStringLiteral("255.255.255.0"), QStringLiteral("192.111.111.1"));
+    if (dlg.exec() != QDialog::Accepted) return;
+    m_ctrl->setNewIp(dlg.ipAddress(), dlg.subnetMask(), dlg.gateway());
 }
 
 void MainWindow::onSaveResult() {
