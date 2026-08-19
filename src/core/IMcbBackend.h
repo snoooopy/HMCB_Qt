@@ -39,6 +39,14 @@ public:
     // Phase 4：设新 IP（MCB_CMD_SETNEWIP=0x0601）：12 字节 = IP4+子网掩码4+网关4
     virtual void setNewIp(const quint8 addr[12]) = 0;
 
+    // Phase 4：Tools 转储（DUMPEEPROMKEYDATA/DUMPALLECSREG，均 LPARAM=1）
+    virtual void dumpEepromKeyData() = 0;
+    virtual void dumpAllEcsRegisters() = 0;
+
+    // Phase 4：MCB Control 计时设置（Windows 固定发 0）
+    virtual void setPotmt(uint32_t potmt) = 0;    // MCB_CMD_SETPOTMT
+    virtual void setIntt(uint32_t intt) = 0;      // MCB_CMD_SETINTTM
+
     // 同步查询（短暂阻塞，经返回值给出）
     virtual uint32_t getMcbNum() = 0;
     virtual bool getDeviceReady() = 0;

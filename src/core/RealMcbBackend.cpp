@@ -75,6 +75,15 @@ void RealMcbBackend::setNewIp(const quint8 addr[12]) {
     // 结果经 MCB_MSG_STATUS 回 0x1121 RUN / 0x1122 ERR / 0x1123 OK
     SetMCBCommand(MCB_CMD_SETNEWIP, reinterpret_cast<LPARAM>(addr));
 }
+// Linux 库头（libMcbctrl 20260421）缺 DUMPEEPROMKEYDATA 定义（Windows 版库=0x060E；
+// 当前 Linux 库的命令 switch 也无此 case，会静默忽略）——按 Windows 契约补发。
+#ifndef MCB_CMD_DUMPEEPROMKEYDATA
+#define MCB_CMD_DUMPEEPROMKEYDATA (0x060E)
+#endif
+void RealMcbBackend::dumpEepromKeyData()   { SetMCBCommand(MCB_CMD_DUMPEEPROMKEYDATA, 1); }
+void RealMcbBackend::dumpAllEcsRegisters() { SetMCBCommand(MCB_CMD_DUMPALLECSREG, 1); }
+void RealMcbBackend::setPotmt(uint32_t v)  { SetMCBCommand(MCB_CMD_SETPOTMT, static_cast<LPARAM>(v)); }
+void RealMcbBackend::setIntt(uint32_t v)   { SetMCBCommand(MCB_CMD_SETINTTM, static_cast<LPARAM>(v)); }
 
 uint32_t RealMcbBackend::getMcbNum() {
     UINT n = 0;

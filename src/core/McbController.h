@@ -35,6 +35,10 @@ public slots:
     void measureInl();     // function=2：INL 多点 DA 扫描
     void measureGain();    // function=6：增益自动校准（迭代升档 + 写回）
     bool setNewIp(const QString& ip, const QString& mask, const QString& gateway);  // Tools→Set New IP
+    void dumpEepromKeyData();        // Tools→Dump EEPROM Key Data
+    void dumpAllEcsRegisters();      // Tools→Dump All ECS Registers
+    void setPotmtZero();             // Measure→SetPOTMT（Windows 固定发 0）
+    void setInttZero();              // Measure→Set INTT（Windows 固定发 0）
 
     MeasurementEngine* engine() { return m_engine.get(); }
 

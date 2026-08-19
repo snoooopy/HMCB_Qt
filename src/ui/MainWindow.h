@@ -1,5 +1,6 @@
 #pragma once
 #include <QMainWindow>
+#include <QList>
 #include "core/McbTypes.h"
 
 class McbController;
@@ -40,6 +41,10 @@ private slots:
     void onMeasurementReady(int function);
     void onGainCalibReady();
     void onToolsSetNewIp();     // Tools→Set New IP（IDD_DIALOG_SETNEWIP）
+    void onDumpEeprom();        // Tools→Dump EEPROM Key Data
+    void onDumpEcsRegisters();  // Tools→Dump All ECS Registers
+    void onSetPotmt();          // Measure→SetPOTMT（发 0）
+    void onSetIntt();           // Measure→Set INTT（发 0）
 
 private:
     void buildActions();   // 共享 QAction（菜单与工具栏挂同一动作，同 MFC 同 ID）
@@ -47,6 +52,11 @@ private:
     void buildToolBar();
     void buildStatusBar();
     void wireController();
+
+    // Windows Enable(!m_bStart && m_bDVReady) 的动态门控动作
+    void setReadyGated(bool enabled);
+    QList<QAction*> m_readyGateActions;
+    bool m_ready = false;
 
     McbController* m_ctrl;
     DataGridWidget* m_grid = nullptr;

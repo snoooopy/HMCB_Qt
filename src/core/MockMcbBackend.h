@@ -40,6 +40,16 @@ public:
     }
     QVector<uint8_t> lastNewIp() const { return m_lastNewIp; }   // 测试断言用
 
+    void dumpEepromKeyData() override      { m_dumpEeprom = true; }
+    void dumpAllEcsRegisters() override    { m_dumpEcs = true; }
+    bool dumpEepromRequested() const { return m_dumpEeprom; }   // 测试断言用
+    bool dumpEcsRequested() const   { return m_dumpEcs; }
+
+    void setPotmt(uint32_t v) override { m_potmt = v; }
+    void setIntt(uint32_t v) override { m_intt = v; }
+    uint32_t lastPotmt() const { return m_potmt; }
+    uint32_t lastIntt() const { return m_intt; }
+
     uint32_t getMcbNum() override { return 1; }
     bool getDeviceReady() override { return m_ready; }
     bool getRunStatus() override { return m_running; }
@@ -65,6 +75,8 @@ private:
     QVector<double> m_dmAmp;              // 每 DM 基础幅度（20bit 域）
     bool m_rangeSet = false;              // 最后设置的控制生效：setDa 清 / setDmRange 置
     QVector<uint8_t> m_lastNewIp;         // 最近一次 setNewIp 的 12 字节
+    bool m_dumpEeprom = false, m_dumpEcs = false;
+    uint32_t m_potmt = 0, m_intt = 0;
 
     void emitStatus(WPARAM cat, int nMCB, uint32_t code) {
         if (m_status) m_status(cat, nMCB, code);

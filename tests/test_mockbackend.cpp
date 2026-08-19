@@ -157,6 +157,21 @@ private slots:
         for (int i = 0; i < 12; ++i)
             QCOMPARE(got.at(i), quint8(addr[i]));
     }
+
+    void dumpAndTimingCommandsRecorded() {
+        // 对照 Windows：DUMP*=1；SetPOTMT/Set INTT 固定发 0
+        MockMcbBackend b;
+        QVERIFY(!b.dumpEepromRequested());
+        QVERIFY(!b.dumpEcsRequested());
+        b.dumpEepromKeyData();
+        b.dumpAllEcsRegisters();
+        QVERIFY(b.dumpEepromRequested());
+        QVERIFY(b.dumpEcsRequested());
+        b.setPotmt(0);
+        b.setIntt(0);
+        QCOMPARE(b.lastPotmt(), 0u);
+        QCOMPARE(b.lastIntt(), 0u);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestMockBackend)

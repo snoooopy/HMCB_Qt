@@ -280,6 +280,11 @@ bool McbController::setNewIp(const QString& ip, const QString& mask, const QStri
     return true;
 }
 
+void McbController::dumpEepromKeyData()   { if (m_be) m_be->dumpEepromKeyData(); }
+void McbController::dumpAllEcsRegisters() { if (m_be) m_be->dumpAllEcsRegisters(); }
+void McbController::setPotmtZero()        { if (m_be) m_be->setPotmt(0); }
+void McbController::setInttZero()         { if (m_be) m_be->setIntt(0); }
+
 DMINFO    McbController::getDmInfo(int nMCB) { return m_be ? m_be->getDmInfo(nMCB) : DMINFO{}; }
 uint32_t  McbController::getMcbNum()         { return m_be ? m_be->getMcbNum() : 0; }
 bool      McbController::getRunStatus()      { return m_be ? m_be->getRunStatus() : false; }

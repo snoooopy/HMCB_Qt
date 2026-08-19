@@ -222,8 +222,11 @@ void MainWindow::buildMenus() {
     measMenu->addAction(QStringLiteral("Set DM Range"))->setEnabled(false);         // Phase 4
     measMenu->addAction(QStringLiteral("Set DM 2 Types Range"))->setEnabled(false); // Phase 4
     measMenu->addAction(m_aSendAll);
-    measMenu->addAction(QStringLiteral("SetPOTMT"))->setEnabled(false);             // Phase 4
-    measMenu->addAction(QStringLiteral("Set INTT"))->setEnabled(false);             // Phase 4
+    auto* aPotmt = measMenu->addAction(QStringLiteral("SetPOTMT"));
+    connect(aPotmt, &QAction::triggered, this, &MainWindow::onSetPotmt);
+    auto* aIntt = measMenu->addAction(QStringLiteral("Set INTT"));
+    connect(aIntt, &QAction::triggered, this, &MainWindow::onSetIntt);
+    m_readyGateActions = { aPotmt, aIntt };   // Windows: Enable(!m_bStart && m_bDVReady)
     measMenu->addSeparator();
     // .rc 中 "&&" 转义为显示 "&"
     measMenu->addAction(QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
@@ -237,8 +240,11 @@ void MainWindow::buildMenus() {
     auto* toolsMenu = menuBar()->addMenu(QStringLiteral("Tools"));
     auto* aSetIp = toolsMenu->addAction(QStringLiteral("Set New IP"));
     connect(aSetIp, &QAction::triggered, this, &MainWindow::onToolsSetNewIp);
-    toolsMenu->addAction(QStringLiteral("Dump EEPROM Key Data"))->setEnabled(false);
-    toolsMenu->addAction(QStringLiteral("Dump All ECS Registers"))->setEnabled(false);
+    auto* aDumpEeprom = toolsMenu->addAction(QStringLiteral("Dump EEPROM Key Data"));
+    connect(aDumpEeprom, &QAction::triggered, this, &MainWindow::onDumpEeprom);
+    auto* aDumpEcs = toolsMenu->addAction(QStringLiteral("Dump All ECS Registers"));
+    connect(aDumpEcs, &QAction::triggered, this, &MainWindow::onDumpEcsRegisters);
+    m_readyGateActions += { aDumpEeprom, aDumpEcs };   // 停止态+就绪才可用（同 Windows）
 
     // Help(&H)
     auto* helpMenu = menuBar()->addMenu(QStringLiteral("Help(&H)"));
@@ -359,6 +365,8 @@ void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
 void MainWindow::onDeviceReady() {
     m_sidebar->setBoardReady(0, true);
     m_stStatus->setText(QStringLiteral("设备就绪"));
+    m_ready = true;
+    setReadyGated(true);        // 对照 Windows DVREADY 后放开停止态命令
     if (m_ctrl) {
         // 按实际几何建表（对照 Windows DVREADY: ResetDataList+InitialDataList，
         // 几何来自 GETDMINFO=MCBCtrl.ini [MCB]MCB0ADNUM / [ADM]ROW/COLUMN）+ 停靠窗几何
@@ -381,6 +389,7 @@ void MainWindow::onRunStateChanged(bool running) {
         m_rateTimer->stop();
         m_stRun->setText(QStringLiteral("STOPPED"));
     }
+    setReadyGated(!running);   // 采集期间关闭停止态命令（对照 Windows !m_bStart）
 }
 
 // ---- Phase 2：测量 / 视图 / 保存 ----
@@ -430,6 +439,17 @@ void MainWindow::onToolsSetNewIp() {
     dlg.setAddresses(cur, QStringLiteral("255.255.255.0"), QStringLiteral("192.111.111.1"));
     if (dlg.exec() != QDialog::Accepted) return;
     m_ctrl->setNewIp(dlg.ipAddress(), dlg.subnetMask(), dlg.gateway());
+}
+
+void MainWindow::onDumpEeprom()       { m_ctrl->dumpEepromKeyData(); }
+void MainWindow::onDumpEcsRegisters() { m_ctrl->dumpAllEcsRegisters(); }
+void MainWindow::onSetPotmt()         { m_ctrl->setPotmtZero(); }
+void MainWindow::onSetIntt()          { m_ctrl->setInttZero(); }
+
+// Windows Enable(!m_bStart && m_bDVReady)：就绪后开，采集期间关
+void MainWindow::setReadyGated(bool enabled) {
+    for (QAction* a : m_readyGateActions)
+        a->setEnabled(enabled && m_ready);
 }
 
 void MainWindow::onSaveResult() {
