@@ -20,6 +20,8 @@ set(APP_SOURCES
     core/CsvResultWriter.cpp
     core/PosDataWriter.h
     core/PosDataWriter.cpp
+    core/OriginDataWriter.h
+    core/OriginDataWriter.cpp
     core/XmlGainWriter.h
     core/XmlGainWriter.cpp
     ui/MainWindow.h

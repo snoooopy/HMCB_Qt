@@ -6,6 +6,7 @@
 #include <QFile>
 #include "core/MeasurementEngine.h"
 #include "core/PosDataWriter.h"
+#include "core/OriginDataWriter.h"
 
 class TestMeasurement : public QObject {
     Q_OBJECT
@@ -188,6 +189,37 @@ private slots:
         QCOMPARE(QString::fromUtf8(f.readAll()),
                  QStringLiteral("Packet:0, AngleCode:5, ConveyorCode:7\n"
                                 "Packet:1, AngleCode:6, ConveyorCode:8\n"));
+    }
+
+    void originDataWriterBytes() {
+        // 对照 OnSavedatao：每帧前 SAVECHN=128 通道、int32 小端逐点
+        MeasurementEngine e;
+        QVector<uint32_t> fr(200);                 // >128 通道：只写前 128
+        for (int i = 0; i < 200; ++i) fr[i] = uint32_t(1000 + i);
+        e.appendFrame(0, fr);
+        QVector<uint32_t> fr2 = fr;
+        fr2[0] = 5;
+        e.appendFrame(0, fr2);
+        const auto snap = e.ringSnapshot(0);
+        QCOMPARE(snap.size(), 2);
+
+        QTemporaryDir dir;
+        const QString p = dir.path() + "/o.oridat";
+        QVERIFY(OriginDataWriter::write(p, snap));
+        QFile f(p);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QByteArray raw = f.readAll();
+        QCOMPARE(raw.size(), 2 * 128 * 4);         // 2 帧 ×128 通道 ×4B
+        // 第 0 帧首点=1000、第 1 帧首点=5、末帧末通道=帧内 ch127=1127
+        const auto rd = [&raw](int idx) {
+            return qint32(static_cast<uint8_t>(raw[idx*4]))
+                 | (qint32(static_cast<uint8_t>(raw[idx*4+1])) << 8)
+                 | (qint32(static_cast<uint8_t>(raw[idx*4+2])) << 16)
+                 | (qint32(static_cast<uint8_t>(raw[idx*4+3])) << 24);
+        };
+        QCOMPARE(rd(0), 1000);
+        QCOMPARE(rd(128), 5);
+        QCOMPARE(rd(127), 1127);
     }
 };
 

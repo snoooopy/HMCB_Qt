@@ -43,6 +43,8 @@ public:
     // POS 数据（Save Position Code Data）：每帧 ptsm 扩展字，环形深同 m_depth
     void appendPos(int nMCB, uint32_t ptsmL, uint32_t ptsmH);
     QVector<QPair<uint32_t, uint32_t>> posSnapshot(int nMCB) const;   // (lo, hi) 老→新
+    // 帧缓存快照（Save Origin Data 数据源）：老→新，按值拷贝
+    QVector<QVector<uint32_t>> ringSnapshot(int nMCB) const;
 
     int frameCount(int nMCB) const;
     // 按值返回：内部缓冲被工作线程并发写，引用会在锁外失效

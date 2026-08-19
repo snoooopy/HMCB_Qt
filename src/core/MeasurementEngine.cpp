@@ -41,6 +41,12 @@ QVector<QPair<uint32_t, uint32_t>> MeasurementEngine::posSnapshot(int nMCB) cons
     return m_pos[i];
 }
 
+QVector<QVector<uint32_t>> MeasurementEngine::ringSnapshot(int nMCB) const {
+    int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
+    return m_ring[i];
+}
+
 int MeasurementEngine::frameCount(int nMCB) const {
     QMutexLocker lk(&m_mutex);
     return m_count[nMCB & 7];

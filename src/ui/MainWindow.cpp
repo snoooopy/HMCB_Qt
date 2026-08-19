@@ -8,6 +8,7 @@
 #include "core/MeasurementEngine.h"
 #include "core/CsvResultWriter.h"
 #include "core/PosDataWriter.h"
+#include "core/OriginDataWriter.h"
 #include "core/IniFile.h"
 #include "ui/GainCalibResultDialog.h"
 #include "ui/SetIpDialog.h"
@@ -177,7 +178,8 @@ void MainWindow::buildMenus() {
     // File(&F)
     auto* fileMenu = menuBar()->addMenu(QStringLiteral("File(&F)"));
     fileMenu->addAction(m_aSaveResult);
-    fileMenu->addAction(QStringLiteral("Save Origin Data(&D)"))->setEnabled(false);      // Phase 4
+    auto* aSaveOrigin = fileMenu->addAction(QStringLiteral("Save Origin Data(&D)"));
+    connect(aSaveOrigin, &QAction::triggered, this, &MainWindow::onSaveOriginData);
     fileMenu->addAction(QStringLiteral("Save Image Data(&I)"))->setEnabled(false);       // Phase 4
     auto* aSavePos = fileMenu->addAction(QStringLiteral("Save Position Code Data(&C)"));
     connect(aSavePos, &QAction::triggered, this, &MainWindow::onSavePosData);
@@ -269,8 +271,8 @@ void MainWindow::buildToolBar() {
     tb->addSeparator();
     auto* aSaveImg = tb->addAction(IC("save_image"), QStringLiteral("Save Image Data"));
     aSaveImg->setEnabled(false);          // Phase 4
-    auto* aSaveOrigin = tb->addAction(IC("save_origin"), QStringLiteral("Save Origin Data"));
-    aSaveOrigin->setEnabled(false);       // Phase 4
+    auto* aSaveOriginTb = tb->addAction(IC("save_origin"), QStringLiteral("Save Origin Data"));
+    connect(aSaveOriginTb, &QAction::triggered, this, &MainWindow::onSaveOriginData);
     tb->addSeparator();
     auto* aStart = tb->addAction(IC("start"), QStringLiteral("Start"));
     connect(aStart, &QAction::triggered, this, &MainWindow::onStart);
@@ -467,6 +469,25 @@ void MainWindow::onSavePosData() {
         QStringLiteral("Text file(*.txt)"));
     if (path.isEmpty()) return;
     if (PosDataWriter::write(path, frames))
+        m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
+    else
+        QMessageBox::warning(this, QStringLiteral("Error"), QStringLiteral("Open File Error!"));
+}
+
+void MainWindow::onSaveOriginData() {
+    // 对照 OnSavedatao：.oridat 二进制，每帧前 128 通道 int32 逐点
+    if (!m_ctrl || !m_ctrl->engine()) return;
+    const auto frames = m_ctrl->engine()->ringSnapshot(0);
+    if (frames.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"),
+                                 QStringLiteral("尚无采集数据，请先采集。"));
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Save Origin Data"), QString(),
+        QStringLiteral("数据文件(*.oridat)"));
+    if (path.isEmpty()) return;
+    if (OriginDataWriter::write(path, frames))
         m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
     else
         QMessageBox::warning(this, QStringLiteral("Error"), QStringLiteral("Open File Error!"));
