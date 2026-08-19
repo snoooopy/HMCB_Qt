@@ -50,4 +50,12 @@ bool extractCurrent(const QVector<Ch>& para, uint32_t module,
                     uint32_t row, uint32_t column,
                     int32_t& valBias, int32_t& valThrL, int32_t& valThrU);
 
+// 上次对话框状态（Windows View::m_FndLastPara / LASTPARA）：跨打开记忆
+struct LastPara {
+    uint32_t module = 0, row = 0, column = 0;
+    bool bAllChn = true, bAllModule = true, bBias = true, bThr = true;
+    uint32_t lowup = 0;               // 0-下阈值 1-上阈值
+    int32_t nValBias = 0, nValThrL = 0, nValThrU = 0;
+};
+
 } // namespace FndmParaBuilder

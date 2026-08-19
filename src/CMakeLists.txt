@@ -22,6 +22,8 @@ set(APP_SOURCES
     core/PosDataWriter.cpp
     core/FndmParaBuilder.h
     core/FndmParaBuilder.cpp
+    core/FndmScanWriter.h
+    core/FndmScanWriter.cpp
     core/OriginDataWriter.h
     core/OriginDataWriter.cpp
     core/XmlGainWriter.h
@@ -44,9 +46,14 @@ set(APP_SOURCES
     ui/GainCalibResultDialog.cpp
     ui/SetIpDialog.h
     ui/SetIpDialog.cpp
+    ui/FndmParaDialog.h
+    ui/FndmParaDialog.cpp
 )
 
 qt_add_executable(HMCB_Qt ${APP_SOURCES} ui/app.qrc)
+# AUTOMOC 输出挪出源码树：默认在 src/HMCB_Qt_autogen/，会被 .pro 的递归
+# 通配收进 SOURCES 造成 moc 符号重复定义
+set_target_properties(HMCB_Qt PROPERTIES AUTOGEN_BINARY_DIR "${CMAKE_BINARY_DIR}/HMCB_Qt_autogen")
 target_include_directories(HMCB_Qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${MCBCTRL_INCLUDE_DIRS})

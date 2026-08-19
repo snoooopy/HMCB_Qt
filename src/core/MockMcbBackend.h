@@ -62,6 +62,7 @@ public:
     void setFndmDeMode(bool on) override { m_deMode = on; }
     void setFndmNsType(int ns) override  { m_nsType = ns; }
     QVector<FndmParaBuilder::Ch> lastFndmPara() const { return m_fndmPara; }
+    QVector<FndmParaBuilder::Ch> getFndmPara() override { return m_fndmPara; }
     bool lastDeMode() const { return m_deMode; }
     int  lastNsType() const { return m_nsType; }
 

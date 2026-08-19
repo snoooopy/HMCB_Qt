@@ -374,6 +374,10 @@ void McbController::setFndmPara(const QVector<FndmParaBuilder::Ch>& para) {
     emit statusMessage(QStringLiteral("[MCB0] SETFNDMPARA：已下发 %1 项通道参数").arg(para.size()), 0);
 }
 
+QVector<FndmParaBuilder::Ch> McbController::getFndmPara() {
+    return m_be ? m_be->getFndmPara() : QVector<FndmParaBuilder::Ch>();
+}
+
 void McbController::setFndmDeMode(bool on) {
     // 对照 OnFndmDe：toggle 后发 SETDEMODE（m_nInvalidPacket 半减是库内
     // 无消费的死变量，不移植）

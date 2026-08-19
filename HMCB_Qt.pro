@@ -17,9 +17,10 @@ INCLUDEPATH += $$PWD/src $$LIBDIR/src $$LIBDIR/include
 LIBS += $$LIBDIR/libmcbctrl.so.1.0.0.131
 QMAKE_RPATHDIR += $$LIBDIR   # 运行期定位 .so（与 CMake 的 RPATH 等价）
 
-# ---- 自动收集源码（递归 src/）----
-SOURCES += $$files($$PWD/src/*.cpp, true)
-HEADERS += $$files($$PWD/src/*.h, true)
+# ---- 自动收集源码（core/ui 两层 + main.cpp；不递归以避开构建器生成物，
+#      CMake AUTOMOC 曾在 src/ 下生成 *_autogen/ 导致 moc 符号重复定义）----
+SOURCES += $$PWD/src/main.cpp $$files($$PWD/src/core/*.cpp) $$files($$PWD/src/ui/*.cpp)
+HEADERS += $$files($$PWD/src/core/*.h) $$files($$PWD/src/ui/*.h)
 RESOURCES += $$PWD/src/ui/app.qrc
 
 TARGET = HMCB_Qt

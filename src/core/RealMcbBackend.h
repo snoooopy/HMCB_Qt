@@ -32,6 +32,7 @@ public:
     void setFndmPara(const QVector<FndmParaBuilder::Ch>& para) override;
     void setFndmDeMode(bool on) override;
     void setFndmNsType(int ns) override;
+    QVector<FndmParaBuilder::Ch> getFndmPara() override;
 
     uint32_t getMcbNum() override;
     bool getDeviceReady() override;

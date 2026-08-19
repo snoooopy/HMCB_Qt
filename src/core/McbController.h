@@ -43,6 +43,7 @@ public slots:
     void setDmRangeFromIni();        // Measure→Set DM Range：重读 MCBCtrl.ini [RANGE0] 下发
     void setDm2TypeRangeFromIni(const QString& testIniPath = QString());  // Measure→Set DM 2 Types Range
     void setFndmPara(const QVector<FndmParaBuilder::Ch>& para);   // SETFNDMPARA 组包转发
+    QVector<FndmParaBuilder::Ch> getFndmPara();     // GETFNDMPARA 回读（Linux 库现状返回空）
     void setFndmDeMode(bool on);        // Measure→FNDM DualEnergy Mode（toggle 由 UI 持有）
     void setFndmNsType(int ns);         // Measure→Fast Neutron Source Type（0 Pulsed 1 Continued）
     bool fndmEnabled();                 // MCBCtrl.ini [ADM] ENFNDMODE==1（三项菜单门控）

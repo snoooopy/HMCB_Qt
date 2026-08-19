@@ -1,5 +1,8 @@
 #include <QtTest/QtTest>
+#include <QTemporaryDir>
+#include <QFile>
 #include "core/FndmParaBuilder.h"
+#include "core/FndmScanWriter.h"
 
 // 对照 Windows DlgFNDMParaSet.cpp OnBnClickedApply/OnBnClickedButtonAdd/Sub/
 // SetScanThr/UpdateCurrentFndmPara 的组包与提取规则
@@ -93,6 +96,46 @@ private slots:
         int b2 = 5;
         QVERIFY(!FndmParaBuilder::extractCurrent(para, 7, 0, 0, b2, thrL, thrU));
         QCOMPARE(b2, 5);
+    }
+
+    void scanWriterTxtCsvFormats() {
+        // 对照 SaveScanSpec：2 通道 × 3 bin，scanData[chn][bin][sn]
+        FndmScanWriter::Spec s;
+        s.valScan = 100; s.valScan2 = 400; s.valBin = 100;   // bins=(400-100)/100=3
+        s.sampleTimes = 7; s.potmtMs = 4000;
+        s.scanData.resize(2);
+        for (int ch = 0; ch < 2; ++ch) {
+            s.scanData[ch].resize(3);
+            for (int b = 0; b < 3; ++b)
+                for (int sn = 0; sn < 2; ++sn)
+                    s.scanData[ch][b].append(uint64_t(ch * 30 + b * 10 + sn));
+        }
+        QCOMPARE(s.binCount(), 3);
+        QTemporaryDir dir;
+        const QString txt = dir.path() + "/spec.txt";
+        const QString csv = dir.path() + "/spec.csv";
+        QVERIFY(FndmScanWriter::writeTxt(txt, s));
+        QVERIFY(FndmScanWriter::writeCsv(csv, s));
+        QFile f(txt);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const auto lines = QString::fromUtf8(f.readAll()).split('\n');
+        // 段头（背景段）+ 3 bin 行，随后谱段重复
+        QCOMPARE(lines[0], QStringLiteral("Binwidth[mV] Binstart[mV] 7 x [[time[ms]  2 x pixelvalue]]"));
+        QCOMPARE(lines[1], QStringLiteral("100\t100\t4\t0\t30"));
+        QCOMPARE(lines[2], QStringLiteral("100\t200\t4\t10\t40"));
+        QCOMPARE(lines[4], lines[0]);                          // 谱段头
+        QCOMPARE(lines[5], QStringLiteral("100\t100\t4\t1\t31"));
+        QFile g(csv);
+        QVERIFY(g.open(QIODevice::ReadOnly));
+        const auto cl = QString::fromUtf8(g.readAll()).split('\n');
+        QCOMPARE(cl[0], QStringLiteral("Binwidth[mV]:100  time[ms]28  2 x pixelvalue"));
+        QCOMPARE(cl[1], QStringLiteral("Binstart[mV],100,200,300"));
+        QCOMPARE(cl[2], QStringLiteral("Pixel"));
+        QCOMPARE(cl[3], QStringLiteral("0,0,10,20"));          // 通道 0 背景段
+        QCOMPARE(cl[4], QStringLiteral("1,30,40,50"));
+        QCOMPARE(cl[5], QString());                            // 段间空行
+        QCOMPARE(cl[6], cl[0]);                                // 谱段头
+        QCOMPARE(cl[9], QStringLiteral("0,1,11,21"));          // 通道 0 谱段
     }
 };
 

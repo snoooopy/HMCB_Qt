@@ -58,6 +58,8 @@ public:
     virtual void setFndmPara(const QVector<FndmParaBuilder::Ch>& para) = 0;
     virtual void setFndmDeMode(bool on) = 0;      // MCB_CMD_SETDEMODE
     virtual void setFndmNsType(int ns) = 0;       // MCB_CMD_SETNSTYPE
+    // MCB_CMD_GETFNDMPARA 回读。Linux 库该 case 被注释（不回填）→ 返回空
+    virtual QVector<FndmParaBuilder::Ch> getFndmPara() = 0;
 
     // 同步查询（短暂阻塞，经返回值给出）
     virtual uint32_t getMcbNum() = 0;

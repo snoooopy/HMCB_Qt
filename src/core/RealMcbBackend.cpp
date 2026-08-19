@@ -117,6 +117,21 @@ void RealMcbBackend::setFndmDeMode(bool on) {
 void RealMcbBackend::setFndmNsType(int ns) {
     SetMCBCommand(MCB_CMD_SETNSTYPE, static_cast<LPARAM>(ns));
 }
+QVector<FndmParaBuilder::Ch> RealMcbBackend::getFndmPara() {
+    // 对照 UpdateCurrentFndmPara：GETFNDMPARA LPARAM 指向接收结构。
+    // Linux 库该 case 被注释（不回填），返回空 QVector；库实现恢复后此
+    // 处即可拿到回读值。
+    static FNDMPARA p;
+    memset(&p, 0, sizeof(p));
+    SetMCBCommand(MCB_CMD_GETFNDMPARA, reinterpret_cast<LPARAM>(&p));
+    QVector<FndmParaBuilder::Ch> v;
+    const int n = qMin<UINT>(p.nChannels, UINT(sizeof(p.ChannelPara) / sizeof(p.ChannelPara[0])));
+    for (int i = 0; i < int(n); ++i)
+        v.append(FndmParaBuilder::Ch(p.ChannelPara[i].nFNDM, p.ChannelPara[i].nType,
+                                     p.ChannelPara[i].nRow, p.ChannelPara[i].nColnum,
+                                     p.ChannelPara[i].nAdjMode, p.ChannelPara[i].nValue));
+    return v;
+}
 
 uint32_t RealMcbBackend::getMcbNum() {
     UINT n = 0;

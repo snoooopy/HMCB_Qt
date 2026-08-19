@@ -12,6 +12,7 @@
 #include "core/IniFile.h"
 #include "ui/GainCalibResultDialog.h"
 #include "ui/SetIpDialog.h"
+#include "ui/FndmParaDialog.h"
 #include <QMenuBar>
 #include <QMenu>
 #include <QCoreApplication>
@@ -237,10 +238,12 @@ void MainWindow::buildMenus() {
     m_readyGateActions += { aPotmt, aIntt };   // Windows: Enable(!m_bStart && m_bDVReady)
     measMenu->addSeparator();
     // .rc 中 "&&" 转义为显示 "&"
-    measMenu->addAction(QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
-        ->setEnabled(false);                                                        // Phase 4-6b（对话框）
     // FNDM 三项共用门控 !start && ready && ENFNDMODE（Windows m_bFND）
     const bool fnd = m_ctrl && m_ctrl->fndmEnabled();
+    auto* aFndmSet = measMenu->addAction(QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"));
+    aFndmSet->setEnabled(fnd);
+    connect(aFndmSet, &QAction::triggered, this, &MainWindow::onFndmParaSet);
+    if (fnd) m_readyGateActions += { aFndmSet };
     auto* aFndmDe = measMenu->addAction(QStringLiteral("FNDM DualEnergy Mode"));
     aFndmDe->setCheckable(true);
     aFndmDe->setEnabled(fnd);
@@ -307,8 +310,9 @@ void MainWindow::buildToolBar() {
     auto* aGain = tb->addAction(IC("gain_calib"), QStringLiteral("Gain automatic calibration"));
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
     tb->addAction(m_aTestMode);
-    tb->addAction(IC("fndm"), QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"))
-        ->setEnabled(false);                                                              // Phase 4
+    auto* aFndmSetTb = tb->addAction(IC("fndm"),
+        QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"));
+    connect(aFndmSetTb, &QAction::triggered, this, &MainWindow::onFndmParaSet);
     tb->addAction(IC("ndet"), QStringLiteral("NDet_Plot"))->setEnabled(false);            // Phase 4
     tb->addSeparator();
     tb->addAction(m_aOneModule);
@@ -493,6 +497,17 @@ void MainWindow::onSavePosData() {
 }
 
 // ---- Phase 4-6：FNDM 双能模式 / 快中子源类型 ----
+void MainWindow::onFndmParaSet() {
+    // 对照 OnFndmSet：打开前 GETFNDMPARA 回填 lastPara，再弹模态框
+    if (!m_ctrl) return;
+    const auto cur = m_ctrl->getFndmPara();
+    if (!cur.isEmpty())
+        FndmParaBuilder::extractCurrent(cur, m_fndmLast.module, m_fndmLast.row,
+                                        m_fndmLast.column, m_fndmLast.nValBias,
+                                        m_fndmLast.nValThrL, m_fndmLast.nValThrU);
+    FndmParaDialog dlg(m_ctrl, &m_fndmLast, this);
+    dlg.exec();
+}
 void MainWindow::onFndmDeMode() {
     // 对照 OnFndmDe：toggle 后发 SETDEMODE，菜单 check 态跟随
     if (!m_ctrl) return;

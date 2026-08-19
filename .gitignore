@@ -7,3 +7,6 @@ compile_commands.json
 build-qmake/
 *.stash
 build_qmake/
+src/CMakeFiles/
+tests/CMakeFiles/
+tests/*_autogen/
