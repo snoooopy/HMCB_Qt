@@ -31,6 +31,8 @@ void RealMcbBackend::trampoline(UINT msg, WPARAM wParam, LPARAM lParam) {
         f.ain0          = d->d_head.head_use.ain0.ul;
         f.ain1          = d->d_head.head_use.ain1.ul;
         f.regError_DI   = d->d_head.head_use.regError_DI;
+        f.ptsmL         = d->d_head.head_use.ptsmdata_l;   // POS: AngleCode
+        f.ptsmH         = d->d_head.head_use.ptsmdata_h;   // POS: ConveyorCode
         const int N = MAX_MCBADNUM * MAX_DMROWNUM * MAX_DMCOLNUM;
         f.channels.resize(N);
         for (int i = 0; i < N; i++) f.channels[i] = d->addata[i].ul;

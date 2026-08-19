@@ -18,6 +18,8 @@ set(APP_SOURCES
     core/MeasurementEngine.cpp
     core/CsvResultWriter.h
     core/CsvResultWriter.cpp
+    core/PosDataWriter.h
+    core/PosDataWriter.cpp
     core/XmlGainWriter.h
     core/XmlGainWriter.cpp
     ui/MainWindow.h

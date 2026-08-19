@@ -45,7 +45,10 @@ void McbController::startUp() {
 
     // 数据回调（数据线程）：累积到测量引擎，再 emit frameReady（跨线程需 McbFrame metatype）。
     m_be->setDataCallback([this](const Mcb::McbFrame& f) {
-        if (m_engine) m_engine->appendFrame(f.nMCB, f.channels);
+        if (m_engine) {
+            m_engine->appendFrame(f.nMCB, f.channels);
+            m_engine->appendPos(f.nMCB, f.ptsmL, f.ptsmH);   // Save Position Code Data 数据源
+        }
         emit frameReady(f.nMCB, f);
     });
 

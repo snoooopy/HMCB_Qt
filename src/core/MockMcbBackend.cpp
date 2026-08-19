@@ -77,6 +77,8 @@ void MockMcbBackend::dataLoop() {
         f.nMCB = 0;
         f.pcounter = ++m_pcounter;
         f.scounter = f.pcounter;
+        f.ptsmL = 1000 + f.scounter;          // POS 仿真：AngleCode/ConveyorCode 随帧递增
+        f.ptsmH = 2000 + f.scounter;
         f.channels.resize(n);
         const double phase = m_pcounter.load() * 0.1;
         // DA 模型（INL 仿真）：摆幅→x(mV)，y=40+0.105x+40(x/5000)³，通道斜率 ±1.8% 固定偏差

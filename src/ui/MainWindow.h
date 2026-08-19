@@ -47,6 +47,7 @@ private slots:
     void onSetIntt();           // Measure→Set INTT（发 0）
     void onSetDmRange();        // Measure→Set DM Range（重读 ini 下发）
     void onSetDm2Range();       // Measure→Set DM 2 Types Range
+    void onSavePosData();       // File→Save Position Code Data
 
 private:
     void buildActions();   // 共享 QAction（菜单与工具栏挂同一动作，同 MFC 同 ID）

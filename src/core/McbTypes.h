@@ -20,6 +20,8 @@ struct McbFrame {
     uint32_t ain0 = 0;
     uint32_t ain1 = 0;
     uint32_t regError_DI = 0;
+    uint32_t ptsmL = 0;                 // d_head.head_use.ptsmdata_l：AngleCode 全 32bit
+    uint32_t ptsmH = 0;                 // d_head.head_use.ptsmdata_h：ConveyorCode 全 32bit
     QVector<uint32_t> channels;   // 重排后的通道样本（AD模块×行×列 展平）
 };
 

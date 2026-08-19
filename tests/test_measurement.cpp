@@ -2,7 +2,10 @@
 #include <cmath>
 #include <atomic>
 #include <thread>
+#include <QTemporaryDir>
+#include <QFile>
 #include "core/MeasurementEngine.h"
+#include "core/PosDataWriter.h"
 
 class TestMeasurement : public QObject {
     Q_OBJECT
@@ -155,6 +158,36 @@ private slots:
         writer.join();
         QVERIFY2(consistent, "latestFrame 读到撕裂帧：append 与读并发无同步");
         QVERIFY(e.frameCount(0) > 0);
+    }
+
+    void posRingAndWriter() {
+        // 对照 OnSavePosdata：帧头 ptsm 逐帧缓存（老→新）→ txt 行格式
+        MeasurementEngine e;
+        e.appendPos(0, 10, 100);
+        e.appendPos(0, 11, 101);
+        e.appendPos(0, 12, 102);
+        auto s = e.posSnapshot(0);
+        QCOMPARE(s.size(), 3);
+        QCOMPARE(s[0].first, 10u);  QCOMPARE(s[0].second, 100u);
+        QCOMPARE(s[2].first, 12u);  QCOMPARE(s[2].second, 102u);
+        // 环形：深 4，追加 6 帧丢最老
+        e.setDepth(4);
+        for (int i = 0; i < 6; ++i) e.appendPos(0, uint32_t(i), 0);
+        s = e.posSnapshot(0);
+        QCOMPARE(s.size(), 4);
+        QCOMPARE(s.first().first, 2u);
+        // reset 清空
+        e.reset(0);
+        QVERIFY(e.posSnapshot(0).isEmpty());
+        // writer 输出
+        QTemporaryDir dir;
+        const QString p = dir.path() + "/pos.txt";
+        QVERIFY(PosDataWriter::write(p, { {5, 7}, {6, 8} }));
+        QFile f(p);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QCOMPARE(QString::fromUtf8(f.readAll()),
+                 QStringLiteral("Packet:0, AngleCode:5, ConveyorCode:7\n"
+                                "Packet:1, AngleCode:6, ConveyorCode:8\n"));
     }
 };
 

@@ -11,6 +11,7 @@ void MeasurementEngine::reset(int nMCB) {
     int i = idx(nMCB);
     QMutexLocker lk(&m_mutex);
     m_ring[i].clear();
+    m_pos[i].clear();
     m_latest[i].clear();
     m_count[i] = 0;
     m_vz[i].clear();
@@ -25,6 +26,19 @@ void MeasurementEngine::appendFrame(int nMCB, const QVector<uint32_t>& channels)
     m_ring[i].append(channels);
     m_latest[i] = channels;
     m_count[i] = std::min(m_count[i] + 1, m_depth);
+}
+
+void MeasurementEngine::appendPos(int nMCB, uint32_t ptsmL, uint32_t ptsmH) {
+    int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
+    if ((int)m_pos[i].size() >= m_depth) m_pos[i].removeFirst();
+    m_pos[i].append(qMakePair(ptsmL, ptsmH));
+}
+
+QVector<QPair<uint32_t, uint32_t>> MeasurementEngine::posSnapshot(int nMCB) const {
+    int i = idx(nMCB);
+    QMutexLocker lk(&m_mutex);
+    return m_pos[i];
 }
 
 int MeasurementEngine::frameCount(int nMCB) const {

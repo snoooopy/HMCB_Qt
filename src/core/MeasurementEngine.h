@@ -34,12 +34,15 @@ public:
         double gainThreshold = 0.9;
     };
 
-    void setDepth(int depth) { m_depth = depth > 0 ? depth : 2048; }
+    void setDepth(int depth) { m_depth = depth > 0 ? depth : kDataNum; }
     void applyConfig(const Config& c) { m_cfg = c; }
     const Config& config() const { return m_cfg; }
 
     void reset(int nMCB);
     void appendFrame(int nMCB, const QVector<uint32_t>& channels);
+    // POS 数据（Save Position Code Data）：每帧 ptsm 扩展字，环形深同 m_depth
+    void appendPos(int nMCB, uint32_t ptsmL, uint32_t ptsmH);
+    QVector<QPair<uint32_t, uint32_t>> posSnapshot(int nMCB) const;   // (lo, hi) 老→新
 
     int frameCount(int nMCB) const;
     // 按值返回：内部缓冲被工作线程并发写，引用会在锁外失效
@@ -73,12 +76,14 @@ public:
     static bool passFail(double value, double lo, double hi);   // lo==hi==0 视为未设=合格
 
     static constexpr int MAX_MCB = 8;
+    static constexpr int kDataNum = 20000;         // Windows DataNum：采集缓存帧数上限
 
 private:
     Config m_cfg;
-    int m_depth = 2048;
+    int m_depth = kDataNum;
     mutable QMutex m_mutex;                       // 保护 m_ring/m_latest/m_count
     QVector<QVector<uint32_t>> m_ring[MAX_MCB];   // 每板帧环形缓冲（深 m_depth）
+    QVector<QPair<uint32_t, uint32_t>> m_pos[MAX_MCB];   // 每帧 (ptsmdata_l, ptsmdata_h)
     QVector<uint32_t> m_latest[MAX_MCB];
     int m_count[MAX_MCB]{};
     QVector<double> m_vz[MAX_MCB];

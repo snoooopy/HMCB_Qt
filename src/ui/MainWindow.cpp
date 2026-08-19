@@ -7,6 +7,7 @@
 #include "core/McbController.h"
 #include "core/MeasurementEngine.h"
 #include "core/CsvResultWriter.h"
+#include "core/PosDataWriter.h"
 #include "core/IniFile.h"
 #include "ui/GainCalibResultDialog.h"
 #include "ui/SetIpDialog.h"
@@ -178,7 +179,8 @@ void MainWindow::buildMenus() {
     fileMenu->addAction(m_aSaveResult);
     fileMenu->addAction(QStringLiteral("Save Origin Data(&D)"))->setEnabled(false);      // Phase 4
     fileMenu->addAction(QStringLiteral("Save Image Data(&I)"))->setEnabled(false);       // Phase 4
-    fileMenu->addAction(QStringLiteral("Save Position Code Data(&C)"))->setEnabled(false); // Phase 4
+    auto* aSavePos = fileMenu->addAction(QStringLiteral("Save Position Code Data(&C)"));
+    connect(aSavePos, &QAction::triggered, this, &MainWindow::onSavePosData);
     fileMenu->addSeparator();
     auto* aExit = fileMenu->addAction(QStringLiteral("Exit(&X)"));
     connect(aExit, &QAction::triggered, this, &MainWindow::onExit);
@@ -450,6 +452,25 @@ void MainWindow::onSetPotmt()         { m_ctrl->setPotmtZero(); }
 void MainWindow::onSetIntt()          { m_ctrl->setInttZero(); }
 void MainWindow::onSetDmRange()       { m_ctrl->setDmRangeFromIni(); }
 void MainWindow::onSetDm2Range()      { m_ctrl->setDm2TypeRangeFromIni(); }
+
+void MainWindow::onSavePosData() {
+    // 对照 OnSavePosdata：txt 每帧一行 Packet/AngleCode/ConveyorCode
+    if (!m_ctrl || !m_ctrl->engine()) return;
+    const auto frames = m_ctrl->engine()->posSnapshot(0);
+    if (frames.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("提示"),
+                                 QStringLiteral("尚无 POS 数据，请先采集。"));
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Save Position Code Data"), QString(),
+        QStringLiteral("Text file(*.txt)"));
+    if (path.isEmpty()) return;
+    if (PosDataWriter::write(path, frames))
+        m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
+    else
+        QMessageBox::warning(this, QStringLiteral("Error"), QStringLiteral("Open File Error!"));
+}
 
 // Windows Enable(!m_bStart && m_bDVReady)：就绪后开，采集期间关
 void MainWindow::setReadyGated(bool enabled) {
