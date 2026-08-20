@@ -7,6 +7,8 @@ set(APP_SOURCES
     core/McbTypes.cpp
     core/IniFile.h
     core/IniFile.cpp
+    core/FpgaBinChecker.h
+    core/FpgaBinChecker.cpp
     core/IMcbBackend.h
     core/MockMcbBackend.h
     core/MockMcbBackend.cpp

@@ -4,6 +4,7 @@
 #include "MeasurementEngine.h"
 #include "IniFile.h"
 #include "XmlGainWriter.h"
+#include "FpgaBinChecker.h"
 #include <QDir>
 #include <QTimer>
 #include <cstring>
@@ -112,12 +113,24 @@ void McbController::shutdown() {
 
 void McbController::initializeBackend() {
     if (!m_be) return;
-    if (m_mode == QStringLiteral("real"))
+    if (m_mode == QStringLiteral("real")) {
         // 库约定：SETCONFIGFILE 传目录，INITIAL 时读 <目录>/MCBCtrl.ini
         // （[CONNECTION] IPADDR/AUTOCONNECT）。不设则库回退到 libmcbctrl.so
         // 所在目录找同名文件——统一放工程 config/ 便于部署。
-        m_be->setConfigFile(QCoreApplication::applicationDirPath()
-                            + QStringLiteral("/config"));
+        const QString cfgDir = QCoreApplication::applicationDirPath()
+                             + QStringLiteral("/config");
+        // 预检 DB FPGA bin：库缺 bin 时 ConfigFpga 失败→0x0210→CLOSE 路径
+        // 段错误（闪退），必须拦截在 INITIAL 之前（2026-08-19 根因）
+        const QStringList miss = FpgaBinChecker::missingFiles(cfgDir);
+        if (!miss.isEmpty()) {
+            emit initialBlocked(miss);
+            emit statusMessage(
+                QStringLiteral("INITIAL 已阻止：缺少 FPGA 配置文件 %1（放入 %2 后重连）")
+                    .arg(miss.join(QStringLiteral(", ")), cfgDir), 0);
+            return;
+        }
+        m_be->setConfigFile(cfgDir);
+    }
     m_be->initialize();
 }
 

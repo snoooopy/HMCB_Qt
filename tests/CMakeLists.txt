@@ -36,6 +36,7 @@ qt_add_executable(test_controller test_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/core/McbTypes.cpp
     ${CMAKE_SOURCE_DIR}/src/core/MeasurementEngine.cpp
     ${CMAKE_SOURCE_DIR}/src/core/IniFile.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/FpgaBinChecker.cpp
     ${CMAKE_SOURCE_DIR}/src/core/XmlGainWriter.cpp)
 target_link_libraries(test_controller PRIVATE Qt6::Test Qt6::Xml mcbctrl)
 target_include_directories(test_controller PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
@@ -89,6 +90,14 @@ target_link_libraries(test_datagrid PRIVATE Qt6::Test Qt6::Widgets)
 target_include_directories(test_datagrid PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME datagrid COMMAND test_datagrid)
 set_tests_properties(datagrid PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ---- test_fpgabin：INITIAL 前 DB FPGA bin 预检（继承链/缺失检测）----
+qt_add_executable(test_fpgabin test_fpgabin.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/FpgaBinChecker.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/IniFile.cpp)
+target_link_libraries(test_fpgabin PRIVATE Qt6::Test)
+target_include_directories(test_fpgabin PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME fpgabin COMMAND test_fpgabin)
 
 # ---- test_setipdialog：Set New IP 对话框文案/回读/IPv4 验证器（offscreen QWidget）----
 qt_add_executable(test_setipdialog test_setipdialog.cpp

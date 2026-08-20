@@ -376,6 +376,13 @@ void MainWindow::wireController() {
     connect(m_ctrl, &McbController::frameReady,     this, &MainWindow::onFrame);
     connect(m_ctrl, &McbController::deviceReady,    this, &MainWindow::onDeviceReady);
     connect(m_ctrl, &McbController::runStateChanged, this, &MainWindow::onRunStateChanged);
+    // 缺 FPGA bin：弹窗报错替代库失败路径的段错误闪退（INITIAL 已被拦截不发）
+    connect(m_ctrl, &McbController::initialBlocked, this, [this](const QStringList& files) {
+        QMessageBox::critical(this, QStringLiteral("连接失败"),
+            QStringLiteral("缺少 DB FPGA 配置文件：\n%1\n\n"
+                           "请将文件放入程序 config 目录后重新连接。")
+                .arg(files.join(QStringLiteral("\n"))));
+    });
     connect(m_ctrl, &McbController::measurementReady, this, &MainWindow::onMeasurementReady);
     connect(m_ctrl, &McbController::gainCalibReady, this, &MainWindow::onGainCalibReady);
 }

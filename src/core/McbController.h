@@ -74,6 +74,9 @@ signals:
     void boardCountChanged(int count);
     // 测量完成（STOPOK 后算完）：function 0 Zero 1 Noise 2 INL 3 NoiseD
     void measurementReady(int function);
+    // INITIAL 被应用侧拦截（缺 DB FPGA bin——库缺 bin 失败路径会段错误，
+    // 不发 INITIAL；参数=缺失文件名列表）
+    void initialBlocked(QStringList files);
     // 增益自动校准收敛并写回完成
     void gainCalibReady();
 
