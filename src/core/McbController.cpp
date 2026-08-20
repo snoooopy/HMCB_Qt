@@ -5,6 +5,7 @@
 #include "IniFile.h"
 #include "XmlGainWriter.h"
 #include "FpgaBinChecker.h"
+#include "AppPaths.h"
 #include <QDir>
 #include <QTimer>
 #include <cstring>
@@ -82,8 +83,7 @@ void McbController::startUp() {
 
     // 读 config/MCB_TEST.ini 注入测量引擎
     IniFile ini;
-    ini.setFileName(QCoreApplication::applicationDirPath() + QDir::separator()
-                    + QStringLiteral("config/MCB_TEST.ini"));
+    ini.setFileName(AppPaths::configDir() + QStringLiteral("/MCB_TEST.ini"));
     if (ini.readAll()) {
         MeasurementEngine::Config cfg;
         cfg.vzSampleNum = ini.getInt("VZERO", "SAMPLENUM", 512);
@@ -117,8 +117,7 @@ void McbController::initializeBackend() {
         // 库约定：SETCONFIGFILE 传目录，INITIAL 时读 <目录>/MCBCtrl.ini
         // （[CONNECTION] IPADDR/AUTOCONNECT）。不设则库回退到 libmcbctrl.so
         // 所在目录找同名文件——统一放工程 config/ 便于部署。
-        const QString cfgDir = QCoreApplication::applicationDirPath()
-                             + QStringLiteral("/config");
+        const QString cfgDir = AppPaths::configDir();
         // 预检 DB FPGA bin：库缺 bin 时 ConfigFpga 失败→0x0210→CLOSE 路径
         // 段错误（闪退），必须拦截在 INITIAL 之前（2026-08-19 根因）
         const QStringList miss = FpgaBinChecker::missingFiles(cfgDir);
@@ -286,7 +285,7 @@ void McbController::finalizeGain() {
                   : (m_dmGainBoard[0].isEmpty() ? 0 : m_dmGainBoard[0].size() - 1);
     IniFile ini;
     ini.setFileName(m_gainIniPath.isEmpty()
-        ? QCoreApplication::applicationDirPath() + QStringLiteral("/config/MCBCtrl.ini")
+        ? AppPaths::configDir() + QStringLiteral("/MCBCtrl.ini")
         : m_gainIniPath);
     ini.readAll();                                // 文件/节不存在则创建
     QVector<uint8_t> gains(nDm);
@@ -297,7 +296,7 @@ void McbController::finalizeGain() {
     }
     ini.writeAll();
     const QString xmlPath = m_gainXmlPath.isEmpty()
-        ? QCoreApplication::applicationDirPath() + QStringLiteral("/DIASConfig.xml")
+        ? AppPaths::configDir() + QStringLiteral("/../DIASConfig.xml")
         : m_gainXmlPath;
     if (!XmlGainWriter::write(xmlPath, 0, gains))
         emit statusMessage(QStringLiteral("[MCB0] DIASConfig.xml 写入失败"), 0);
@@ -353,7 +352,7 @@ void McbController::setDmRangeFromIni() {
     if (!m_be) return;
     IniFile ini;
     ini.setFileName(m_gainIniPath.isEmpty()
-        ? QCoreApplication::applicationDirPath() + QStringLiteral("/config/MCBCtrl.ini")
+        ? AppPaths::configDir() + QStringLiteral("/MCBCtrl.ini")
         : m_gainIniPath);
     if (!ini.readAll()) {
         emit statusMessage(QStringLiteral("[MCB0] Set DM Range: 读取 MCBCtrl.ini 失败"), 0);
@@ -382,7 +381,7 @@ void McbController::setDm2TypeRangeFromIni(const QString& testIniPath) {
     if (!m_be) return;
     IniFile ini;
     ini.setFileName(testIniPath.isEmpty()
-        ? QCoreApplication::applicationDirPath() + QStringLiteral("/config/MCB_TEST.ini")
+        ? AppPaths::configDir() + QStringLiteral("/MCB_TEST.ini")
         : testIniPath);
     if (!ini.readAll()) {
         emit statusMessage(QStringLiteral("[MCB0] Set DM 2 Types Range: 读取 MCB_TEST.ini 失败"), 0);
@@ -438,8 +437,7 @@ void McbController::setFndmNsType(int ns) {
 bool McbController::fndmEnabled() {
     // Windows m_bFND = (MCBCtrl.ini [ADM] ENFNDMODE == 1)
     IniFile ini;
-    ini.setFileName(QCoreApplication::applicationDirPath()
-                    + QStringLiteral("/config/MCBCtrl.ini"));
+    ini.setFileName(AppPaths::configDir() + QStringLiteral("/MCBCtrl.ini"));
     return ini.readAll() && ini.getInt(QStringLiteral("ADM"),
                                        QStringLiteral("ENFNDMODE"), 0) == 1;
 }

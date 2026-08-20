@@ -9,6 +9,8 @@ set(APP_SOURCES
     core/IniFile.cpp
     core/FpgaBinChecker.h
     core/FpgaBinChecker.cpp
+    core/AppPaths.h
+    core/AppPaths.cpp
     core/IMcbBackend.h
     core/MockMcbBackend.h
     core/MockMcbBackend.cpp

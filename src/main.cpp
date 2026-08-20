@@ -4,6 +4,7 @@
 #include "core/McbTypes.h"      // Q_DECLARE_METATYPE(Mcb::McbFrame)
 #include "core/IniFile.h"
 #include "core/McbController.h"
+#include "core/AppPaths.h"
 #include "ui/MainWindow.h"
 
 int main(int argc, char** argv) {
@@ -20,8 +21,7 @@ int main(int argc, char** argv) {
     // 读取 config/app.ini 决定后端模式（mock / real）
     McbController ctrl;
     IniFile ini;
-    const QString iniPath = QApplication::applicationDirPath() + QDir::separator()
-                            + QStringLiteral("config/app.ini");
+    const QString iniPath = AppPaths::configDir() + QStringLiteral("/app.ini");
     ini.setFileName(iniPath);
     ini.readAll();
     const QString mode = ini.getString(QStringLiteral("BACKEND"),

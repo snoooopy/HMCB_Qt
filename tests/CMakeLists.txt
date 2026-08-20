@@ -37,6 +37,7 @@ qt_add_executable(test_controller test_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/core/MeasurementEngine.cpp
     ${CMAKE_SOURCE_DIR}/src/core/IniFile.cpp
     ${CMAKE_SOURCE_DIR}/src/core/FpgaBinChecker.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/AppPaths.cpp
     ${CMAKE_SOURCE_DIR}/src/core/XmlGainWriter.cpp)
 target_link_libraries(test_controller PRIVATE Qt6::Test Qt6::Xml mcbctrl)
 target_include_directories(test_controller PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
@@ -90,6 +91,13 @@ target_link_libraries(test_datagrid PRIVATE Qt6::Test Qt6::Widgets)
 target_include_directories(test_datagrid PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME datagrid COMMAND test_datagrid)
 set_tests_properties(datagrid PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ---- test_apppaths：config 目录解析（构建树 exe/config → dist 包 exe/../config）----
+qt_add_executable(test_apppaths test_apppaths.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/AppPaths.cpp)
+target_link_libraries(test_apppaths PRIVATE Qt6::Test)
+target_include_directories(test_apppaths PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME apppaths COMMAND test_apppaths)
 
 # ---- test_fpgabin：INITIAL 前 DB FPGA bin 预检（继承链/缺失检测）----
 qt_add_executable(test_fpgabin test_fpgabin.cpp
