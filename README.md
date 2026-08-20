@@ -122,6 +122,15 @@ MockMcbBackend（仿真）   RealMcbBackend（封装 libmcbctrl）
 注意：库的 INI 解析器**不支持行内注释**——MCBCtrl.ini 中注释必须独立成行。
 库日志写 `<config目录>/HMCBCtrl.log`。
 
+**连接真实设备（CX1664DE）的必要条件**：config 目录必须有 `[ADM] BINFILE`
+指定的探测器 DB FPGA 配置文件（`HMCB_CX1664DE_DAC17_HEMode_CK_FT_DS_V1.0.0.bin`，
+随仓库携带）。缺失时 INITIAL 的 `ConfigFpga` 失败并断开连接，且 Linux 库
+在该失败路径上存在段错误缺陷（connect OK 后进程直接崩溃，崩点
+`CMCBCtrlC` 构造函数 0x60D42，journal 可见 `segfault ... in libmcbctrl`）。
+换设备型号时需同步替换 bin 文件并按该设备的 MCBCtrl.ini 对齐
+`[MCB] MCBNUM/ENMCBX4/MCBENDB4/MCBnADNUM` 与 `[ADM] ROW/COLUMN/ADBIT` 等几何参数
+（`MCBENDB4=1` 决定库走 InitialMCB_HMCB4 初始化路径）。
+
 ## 6. 功能对照（Windows → Qt）
 
 菜单结构对照 `MCB_TEST.rc` 的 IDR_MAINFRAME（File / MCB Control / Data View /
