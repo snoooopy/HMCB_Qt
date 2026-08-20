@@ -34,7 +34,15 @@ void McbController::startUp() {
             QStringLiteral("[%1] %2")
                 .arg(Mcb::statusCategoryStr(category), Mcb::statusCodeStr(code)),
             nMCB);
-        if (category == MCB_DVREADY) emit deviceReady();
+        if (category == MCB_DVREADY) {
+            // 注入实际通道数：库 MCB_MSG_DATA 的 addata 是 65536 上限数组且无长度
+            // 字段，全量拷贝在真机帧率下饱和 GUI（2026-08-20 卡顿根因）。
+            if (m_be) {
+                const DMINFO d = m_be->getDmInfo(0);
+                if (d.nAllChnNum > 0) m_be->setChannelCount(int(d.nAllChnNum));
+            }
+            emit deviceReady();
+        }
         // STOPOK 延迟到本对象线程处理：回调来自数据线程，直接重启采集会在
         // 数据线程内 join 自身（std::system_error: Resource deadlock avoided）。
         if (category == MCB_STOPOK)

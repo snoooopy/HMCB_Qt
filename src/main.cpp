@@ -36,9 +36,13 @@ int main(int argc, char** argv) {
     // 启动后自动初始化（mock/real 均经 deviceReady 回调）
     ctrl.initializeBackend();
 
-    // 无头冒烟钩子：HMCB_AUTOSTART=1 时就绪后自动开始连续采集
+    // 无头冒烟钩子：HMCB_AUTOSTART=1 时就绪后自动开始连续采集。
+    // 必须等 deviceReady 再发——真实设备 INITIAL（FPGA 烧写）约 19s，
+    // 固定短延时会在 Initialing 中发 Start 被库拒（0x1111）。
     if (qEnvironmentVariableIsSet("HMCB_AUTOSTART"))
-        QTimer::singleShot(2500, &ctrl, [&ctrl] { ctrl.start(0); });
+        QObject::connect(&ctrl, &McbController::deviceReady, &ctrl, [&ctrl] {
+            QTimer::singleShot(800, &ctrl, [&ctrl] { ctrl.start(0); });
+        });
 
     // 无头截图钩子：HMCB_SNAPSHOT=<path> 时就绪后保存主窗口截图（UI 对齐核对用）
     if (const auto snap = qEnvironmentVariable("HMCB_SNAPSHOT"); !snap.isEmpty())

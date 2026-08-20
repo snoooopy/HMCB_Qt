@@ -1,7 +1,9 @@
-# ---- test_liblink：验证库头可编译 + SetMCBCommand 可链接 ----
-qt_add_executable(test_liblink test_liblink.cpp)
+# ---- test_liblink：验证库头可编译 + SetMCBCommand 可链接 + 帧通道数拷贝 ----
+qt_add_executable(test_liblink test_liblink.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/RealMcbBackend.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/McbTypes.cpp)
 target_link_libraries(test_liblink PRIVATE Qt6::Test mcbctrl)
-target_include_directories(test_liblink PRIVATE ${MCBCTRL_INCLUDE_DIRS})
+target_include_directories(test_liblink PRIVATE ${CMAKE_SOURCE_DIR}/src ${MCBCTRL_INCLUDE_DIRS})
 add_test(NAME liblink COMMAND test_liblink)
 
 # ---- test_mcbtypes：状态解码 + 帧值对象 ----

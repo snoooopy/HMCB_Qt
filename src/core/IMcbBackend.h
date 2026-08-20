@@ -66,4 +66,8 @@ public:
     virtual bool getDeviceReady() = 0;
     virtual bool getRunStatus() = 0;
     virtual DMINFO getDmInfo(int nMCB) = 0;
+
+    // 帧通道数注入（真实后端用：DVREADY 后按 GETDMINFO.nAllChnNum 只拷实际通道，
+    // 缺省全量。Mock 自产帧无需实现）
+    virtual void setChannelCount(int n) { Q_UNUSED(n); }
 };

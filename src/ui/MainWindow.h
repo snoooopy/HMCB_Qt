@@ -109,5 +109,9 @@ private:
     qlonglong m_frameCount = 0;
     int m_runSeconds = 0;
     int m_framesThisSec = 0;
+    // 帧到达时只缓存值，状态栏/侧栏文本统一由 1Hz rateTimer 刷新
+    // （对照 MFC OnTimer 1s 更新状态栏；真机包率下每帧 setText 会占满弱核 GUI）
+    qlonglong m_lastSC = 0, m_lastPC = 0;
+    uint32_t m_lastDI = 0;
     class QTimer* m_rateTimer = nullptr;
 };

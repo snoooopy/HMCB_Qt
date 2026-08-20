@@ -15,6 +15,11 @@
 
 RealMcbBackend::StatusCb RealMcbBackend::s_status;
 RealMcbBackend::DataCb   RealMcbBackend::s_data;
+std::atomic<int> RealMcbBackend::s_chn{0};
+
+void RealMcbBackend::setChannelCount(int n) {
+    if (n > 0) s_chn.store(n);
+}
 
 // 库工作线程触发：解码消息，转发为类型化回调。
 void RealMcbBackend::trampoline(UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -33,11 +38,14 @@ void RealMcbBackend::trampoline(UINT msg, WPARAM wParam, LPARAM lParam) {
         f.regError_DI   = d->d_head.head_use.regError_DI;
         f.ptsmL         = d->d_head.head_use.ptsmdata_l;   // POS: AngleCode
         f.ptsmH         = d->d_head.head_use.ptsmdata_h;   // POS: ConveyorCode
-        const int N = MAX_MCBADNUM * MAX_DMROWNUM * MAX_DMCOLNUM;
+        constexpr int kMaxCh = MAX_MCBADNUM * MAX_DMROWNUM * MAX_DMCOLNUM;
+        // 实际通道数（DVREADY 注入；0=未注入时保持全量上限行为）。
+        const int n = s_chn.load(std::memory_order_relaxed);
+        const int N = (n > 0) ? qMin(n, kMaxCh) : kMaxCh;
         f.channels.resize(N);
         for (int i = 0; i < N; i++) f.channels[i] = d->addata[i].ul;
-        // 注：样本重排顺序对照 MCB_TESTView.cpp 回调（按 column/DM/row），
-        // 此处先直拷；硬件联调阶段据实校正索引。
+        // 注：库输出已按 d=col*rowNum+dm*128+row 重排（对照 MCB_TESTView 数据回调），
+        // 直拷前 N 个即为有效通道序。
         if (s_data) s_data(f);
     }
 }

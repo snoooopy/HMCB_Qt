@@ -100,6 +100,10 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
         m_stRun->setText(QStringLiteral("RUN %1s").arg(m_runSeconds));
         m_stRate->setText(QStringLiteral("%1 fps").arg(m_framesThisSec));
         m_framesThisSec = 0;
+        // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）
+        m_stData->setText(QStringLiteral("%1 帧").arg(m_frameCount));
+        m_stDI->setText(QStringLiteral("DI: 0x%1").arg(m_lastDI, 0, 16));
+        m_sidebar->setCounts(0, m_lastSC, m_lastPC);
     });
 
     if (m_ctrl) wireController();
@@ -393,10 +397,12 @@ void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
     if (m_aSaveImg && !m_aSaveImg->isEnabled() && m_bSaveImg)
         m_aSaveImg->setEnabled(true);     // 对照 OnUpdateSavedata：有帧数据才可用
     ++m_framesThisSec;
+    // 只缓存，不做任何 setText（每帧 setText 在真机包率下饱和 GUI 线程；
+    // 文本统一由 1Hz rateTimer 刷新，网格由 DataGridWidget 250ms 合并）
+    m_lastSC = frame.scounter;
+    m_lastPC = frame.pcounter;
+    m_lastDI = frame.regError_DI;
     m_grid->updateFrame(nMCB, frame);
-    m_sidebar->setCounts(0, frame.scounter, frame.pcounter);
-    m_stData->setText(QStringLiteral("%1 帧").arg(m_frameCount));
-    m_stDI->setText(QStringLiteral("DI: 0x%1").arg(frame.regError_DI, 0, 16));
 }
 
 void MainWindow::onDeviceReady() {
