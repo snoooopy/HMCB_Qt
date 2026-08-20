@@ -39,6 +39,10 @@ public:
     void applyConfig(const Config& c) { m_cfg = c; }
     const Config& config() const { return m_cfg; }
 
+    // AD 位数→mV 换算系数（v/系数=mV）：对照 MCB_TESTView.cpp:461-472
+    // 16→65536/5000、20→1048576/4096、24→16777216/5000、其余→20bit
+    static double data2mVFromAdBit(int bit);
+
     void reset(int nMCB);
     void appendFrame(int nMCB, const QVector<uint32_t>& channels);
     // POS 数据（Save Position Code Data）：每帧 ptsm 扩展字，环形深同 m_depth

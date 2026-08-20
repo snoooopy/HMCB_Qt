@@ -70,6 +70,8 @@ public:
     bool getDeviceReady() override { return m_ready; }
     bool getRunStatus() override { return m_running; }
     DMINFO getDmInfo(int nMCB) override;
+    int getDmAdBit() override { return m_adBit; }
+    void setSimAdBit(int b) { m_adBit = b; }   // 测试注入（链路：DVREADY→UI/引擎）
 
 private:
     StatusCb m_status;
@@ -85,6 +87,7 @@ private:
 
     int m_range = 7;
     int m_dmNum = 25, m_rowNum = 32, m_colNum = 4;  // 默认几何，可由配置覆盖
+    int m_adBit = 20;                                // 仿真 AD 位数（默认 20bit）
 
     uint32_t m_da = 0;                    // 最近 AOUTDASET 32bit 码
     QVector<uint8_t> m_dmGainRange;       // 每 DM 档位（0..7）

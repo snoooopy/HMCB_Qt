@@ -49,6 +49,8 @@ public slots:
     bool fndmEnabled();                 // MCBCtrl.ini [ADM] ENFNDMODE==1（三项菜单门控）
 
     MeasurementEngine* engine() { return m_engine.get(); }
+    IMcbBackend* backend() const { return m_be.get(); }   // 只读访问（测试注入用）
+    int adBit() const { return m_adBit; }                 // DVREADY 后的实际 AD 位数
 
     void setGainWritePaths(const QString& iniPath, const QString& xmlPath);  // 测试注入临时目录
     QVector<uint8_t> dmGainValues(int nMCB) const;   // 该板各 DM 档位（去板号字节）
@@ -92,6 +94,7 @@ private:
     int m_inlTestPoint = 0;
     int m_chPerDm = 128;
     int m_gainStep = 0;
+    int m_adBit = 20;   // DVREADY 后由 GETDMADBIT 更新（mV 换算系数依据）
     QVector<uint8_t> m_dmGainBoard[MeasurementEngine::MAX_MCB];   // 65 字节/板：[0]=板号，[1+j]=DM j 档
     QVector<uint8_t> m_dm2TypeBoard[MeasurementEngine::MAX_MCB];  // 1+2nDMNum 字节/板（SET2TYPERANGE）
     QString m_gainIniPath, m_gainXmlPath;

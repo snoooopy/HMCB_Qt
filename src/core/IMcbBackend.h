@@ -66,6 +66,8 @@ public:
     virtual bool getDeviceReady() = 0;
     virtual bool getRunStatus() = 0;
     virtual DMINFO getDmInfo(int nMCB) = 0;
+    // 实际 AD 位数（MCB_CMD_GETDMADBIT）：mV 换算系数由它决定（缺省 20bit）
+    virtual int getDmAdBit() { return 20; }
 
     // 帧通道数注入（真实后端用：DVREADY 后按 GETDMINFO.nAllChnNum 只拷实际通道，
     // 缺省全量。Mock 自产帧无需实现）

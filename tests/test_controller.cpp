@@ -7,6 +7,7 @@
 #include "core/McbController.h"
 #include "core/McbTypes.h"
 #include "core/IniFile.h"
+#include "core/MockMcbBackend.h"
 
 class TestController : public QObject {
     Q_OBJECT
@@ -36,6 +37,32 @@ private slots:
         QVERIFY2(frame, "no frame within 4s after start");
 
         c.stop();
+        c.shutdown();
+    }
+
+    // DVREADY 后按 GETDMADBIT 把实际 AD 位数透传到 UI/引擎（实机 CX1664DE=16bit，
+    // mV 系数须随之切换——2026-08-20 表格 mV 挡数值不对的根因修复）
+    void adBitRelayedToEngine() {
+        qRegisterMetaType<Mcb::McbFrame>("Mcb::McbFrame");
+        McbController c;
+        c.setBackendMode("mock");
+        c.startUp();
+        auto* mock = dynamic_cast<MockMcbBackend*>(c.backend());
+        QVERIFY(mock);
+        mock->setSimAdBit(16);
+
+        std::atomic<bool> ready{false};
+        connect(&c, &McbController::deviceReady, this, [&]{ ready = true; });
+        c.initializeBackend();
+        QElapsedTimer t; t.start();
+        while (!ready && t.elapsed() < 2000)
+            qApp->processEvents(QEventLoop::AllEvents, 5);
+        QVERIFY2(ready, "no deviceReady within 2s");
+
+        QCOMPARE(c.adBit(), 16);
+        // 对照 MCB_TESTView.cpp:461-472：16bit → 65536/5000
+        QCOMPARE(c.engine()->config().data2mV, 65536.0 / 5000.0);
+        QCOMPARE(c.engine()->config().adBit, 16);
         c.shutdown();
     }
 

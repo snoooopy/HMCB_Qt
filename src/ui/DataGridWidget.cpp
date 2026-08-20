@@ -30,6 +30,8 @@ DataGridWidget::DataGridWidget(QWidget* parent) : QWidget(parent) {
 
     auto* prev = new QPushButton(QStringLiteral("<"), this);
     auto* next = new QPushButton(QStringLiteral(">"), this);
+    m_prevBtn = prev;
+    m_nextBtn = next;
     m_pageLabel = new QLabel(this);
     connect(prev, &QPushButton::clicked, this, &DataGridWidget::prevPage);
     connect(next, &QPushButton::clicked, this, &DataGridWidget::nextPage);
@@ -128,7 +130,28 @@ void DataGridWidget::setGeometry(int channels, int rowNum, int admCount) {
 }
 
 int DataGridWidget::pageCount() const {
-    return m_built ? (m_admCount + kPageCols - 1) / kPageCols : 0;
+    // 数据列 = ADM 数 + 尾列 ExDATA（对照 Windows FillDataList：ADM 之后一位为 ExDATA）
+    return m_built ? (m_admCount + 1 + kPageCols - 1) / kPageCols : 0;
+}
+
+void DataGridWidget::setAdBit(int bit) {
+    if (bit <= 0) return;
+    m_adBit = bit;
+    // 对照 MCB_TESTView.cpp:461-472（GETDMADBIT 后的 m_DATA2mV switch）
+    m_data2mV = MeasurementEngine::data2mVFromAdBit(bit);
+    // exdata 专用标度（对照 :2112-2114）：<24bit 为 (16777216>>(24-bit))/10000
+    m_exD2mV = (bit < 24)
+        ? double(int32_t(16777216) >> (24 - bit)) / 10000.0
+        : 16777216.0 / 10000.0;
+    refreshCurrent();
+    m_sizedDirty = true;    // mV 文本宽度随系数变化
+    maybeResize();
+}
+
+int DataGridWidget::pageDataCols() const {
+    if (!m_built) return 0;
+    const int total = m_admCount + 1;   // + ExDATA 尾列
+    return qMin(kPageCols, total - m_page * kPageCols);
 }
 
 void DataGridWidget::setPage(int page) {
@@ -136,6 +159,7 @@ void DataGridWidget::setPage(int page) {
     page = qBound(0, page, pageCount() - 1);
     if (page == m_page) return;
     m_page = page;
+    if (m_model->columnCount() != pageDataCols() + 1) rebuildModel();   // 尾页列数收缩
     refreshHeader();
     refreshCurrent();
 }
@@ -146,6 +170,13 @@ void DataGridWidget::prevPage() { setPage(m_page - 1); }
 void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
     m_last = frame.channels;
     m_lastMCB = nMCB;
+    // ExDATA 列数据源（前 5 行）：对照 FrameEx 填充链
+    m_ex[0] = int32_t(frame.ain0);
+    m_ex[1] = int32_t(frame.ptsmH >> 16);
+    m_ex[2] = int32_t(frame.ptsmH & 0xffff);
+    m_ex[3] = int32_t(frame.ptsmL >> 16);
+    m_ex[4] = int32_t(frame.ptsmL & 0xffff);
+    m_hasEx = true;
     // 测量模式下不被新帧覆盖；Raw 模式节流合并刷新（见 m_flushTimer）
     if (m_mode == DisplayMode::Raw) {
         m_dirty = true;
@@ -155,12 +186,14 @@ void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
 
 void DataGridWidget::rebuildModel() {
     m_model->clear();
-    // 每通道 1 行：行标 " CH{c}-{rr}" + 各 ADM 列数据。
+    // 每通道 1 行：行标 " CH{c}-{rr}" + 当前页各数据列（ADM+尾列 ExDATA，
+    // 不足一页按实际收缩——实机 1 DM 时仅 ADM00+ExDATA，不建幽灵空列）。
     // 注：Windows InitialDataList 每通道后另插一个空行（InsertItem(2i+3)），
     // 但 MFC 列表无网格线，空行只是行距效果；Qt 带网格线会显成"缺数据空格"，
     // 故不复刻。
+    const int cols = pageDataCols();
     m_model->setRowCount(m_rows);
-    m_model->setColumnCount(kPageCols + 1);   // 第 0 列为行标
+    m_model->setColumnCount(cols + 1);   // 第 0 列为行标
     for (int r = 0; r < m_rows; ++r) {
         auto* idx = new QStandardItem(
             QStringLiteral(" CH%1-%2")
@@ -169,7 +202,7 @@ void DataGridWidget::rebuildModel() {
         idx->setEditable(false);
         idx->setBackground(QColor(230, 230, 230));
         m_model->setItem(r, 0, idx);
-        for (int c = 0; c < kPageCols; ++c) {
+        for (int c = 0; c < cols; ++c) {
             auto* it = new QStandardItem;
             it->setEditable(false);
             m_model->setItem(r, c + 1, it);
@@ -184,13 +217,16 @@ void DataGridWidget::refreshHeader() {
                                                     : QStringLiteral("Vo(DEC)");
     m_model->setHeaderData(0, Qt::Horizontal, f);
     const int start = m_page * kPageCols;
-    for (int c = 0; c < kPageCols; ++c) {
+    for (int c = 0; c < pageDataCols(); ++c) {
         const int g = start + c;
-        QString h;   // 对照 ChangeDataPage：ADM 之后第一位 ExDATA，再后留空
+        QString h;   // 对照 ChangeDataPage：ADM 之后第一位 ExDATA
         if (g < m_admCount)       h = QStringLiteral("ADM%1").arg(g, 2, 10, QChar('0'));
         else if (g == m_admCount) h = QStringLiteral("ExDATA");
         m_model->setHeaderData(c + 1, Qt::Horizontal, h);
     }
+    // 翻页边界（对照 OnUpdateViewBack/OnUpdateViewForword）
+    if (m_prevBtn) m_prevBtn->setEnabled(m_page > 0);
+    if (m_nextBtn) m_nextBtn->setEnabled(m_page < pageCount() - 1);
     m_pageLabel->setText(QStringLiteral("Page %1/%2").arg(m_page + 1).arg(pageCount()));
     if (m_mode == DisplayMode::Inl) {   // 对照 m_nINLDataType 五态
         static const char* sub[] = {"INL(permille)", "DIV(%)", "r", "a", "b"};
@@ -203,8 +239,21 @@ void DataGridWidget::refreshFromCache() {
     const int start = m_page * kPageCols;
     const QBrush pass(QColor(220, 255, 220));   // 浅绿
     const QBrush fail(QColor(255, 215, 215));   // 浅红
-    for (int c = 0; c < kPageCols; ++c) {
+    for (int c = 0; c < pageDataCols(); ++c) {
         const int module = start + c;
+        if (module == m_admCount) {   // ExDATA 列：仅前 5 行，无阈值着色（对照 :2110）
+            for (int r = 0; r < m_rows; ++r) {
+                QStandardItem* it = m_model->item(r, c + 1);
+                if (!it) continue;
+                if (m_hasEx && r < 5) {
+                    it->setText(formatEx(m_ex[r]));
+                    it->setBackground(QBrush());
+                } else {
+                    it->setText(QString());
+                }
+            }
+            continue;
+        }
         for (int r = 0; r < m_rows; ++r) {
             const int idx = module * m_rows + r;
             QStandardItem* it = m_model->item(r, c + 1);
@@ -244,7 +293,7 @@ void DataGridWidget::refreshMeasurement() {
     const QBrush pass(QColor(220, 255, 220));   // 合格：浅绿
     const QBrush fail(QColor(200, 200, 200));   // 不合格：灰底
     const QColor  failTxt(255, 0, 0);           // 不合格：红字
-    for (int c = 0; c < kPageCols; ++c) {
+    for (int c = 0; c < pageDataCols(); ++c) {
         const int module = start + c;
         for (int r = 0; r < m_rows; ++r) {
             QStandardItem* it = m_model->item(r, c + 1);
@@ -296,15 +345,27 @@ void DataGridWidget::refreshMeasurement() {
 QString DataGridWidget::formatValue(uint32_t v) const {
     switch (m_fmt) {
     case DisplayFormat::Hex:
-        return QStringLiteral("0x%1").arg(v, 4, 16, QChar('0')).toUpper();
-    case DisplayFormat::mV: {
-        // 20bit 标度：2^20 ↔ 4096 mV（与 Mock/引擎 data2mV 一致）
-        const double mv = v * 4096.0 / 1048576.0;
-        return QString::number(mv, 'f', 1);
-    }
+        // %06X：六位补零大写、无 0x 前缀（对照 Windows %06X 与截图 00FFFF）
+        return QStringLiteral("%1").arg(v, 6, 16, QChar('0')).toUpper();
+    case DisplayFormat::mV:
+        // 系数按实际 AD 位数（setAdBit 注入；对照 Windows %.3f）
+        return QString::number(double(v) / m_data2mV, 'f', 3);
     case DisplayFormat::Dec:
     default:
         return QString::number(v);
+    }
+}
+
+QString DataGridWidget::formatEx(int32_t v) const {
+    // 对照 MCB_TESTView.cpp:2110-2140：exdata 与 ADC 同三态，但 mV 标度独立
+    switch (m_fmt) {
+    case DisplayFormat::Hex:
+        return QStringLiteral("%1").arg(uint32_t(v), 6, 16, QChar('0')).toUpper();
+    case DisplayFormat::mV:
+        return QString::number(double(v) / m_exD2mV, 'f', 3);
+    case DisplayFormat::Dec:
+    default:
+        return QString::number(uint32_t(v));
     }
 }
 

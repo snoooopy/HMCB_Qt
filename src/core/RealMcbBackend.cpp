@@ -64,6 +64,14 @@ void RealMcbBackend::stop()             { SetMCBCommand(MCB_CMD_STOP, 0); }
 void RealMcbBackend::setTrigger(int m)  { SetMCBCommand(MCB_CMD_TRIGSET, static_cast<LPARAM>(m)); }
 void RealMcbBackend::setRangeMode(int r){ SetMCBCommand(MCB_CMD_SETRANGEMODE, static_cast<LPARAM>(r)); }
 
+int RealMcbBackend::getDmAdBit() {
+    // 库侧含 Fcto16ADBit 折算（>16bit 且开折算时 ×16 回 16bit 域），应用侧
+    // 只取结果。库未就绪返回 0 → 按 20bit 缺省（对照 Windows 构造默认值）
+    int b = 0;
+    SetMCBCommand(MCB_CMD_GETDMADBIT, reinterpret_cast<LPARAM>(&b));
+    return (b > 0 && b <= 32) ? b : 20;
+}
+
 void RealMcbBackend::setTiming(uint32_t potmt, uint32_t potmw, uint32_t intt) {
     SetMCBCommand(MCB_CMD_SETPOTMT, static_cast<LPARAM>(potmt));
     SetMCBCommand(MCB_CMD_SETPOTMW, static_cast<LPARAM>(potmw));

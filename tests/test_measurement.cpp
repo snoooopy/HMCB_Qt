@@ -12,6 +12,13 @@
 class TestMeasurement : public QObject {
     Q_OBJECT
 private slots:
+    void data2mVFromAdBit() {
+        // 对照 MCB_TESTView.cpp:461-472（GETDMADBIT 后的 m_DATA2mV switch）
+        QCOMPARE(MeasurementEngine::data2mVFromAdBit(16), 65536.0 / 5000.0);
+        QCOMPARE(MeasurementEngine::data2mVFromAdBit(20), 1048576.0 / 4096.0);
+        QCOMPARE(MeasurementEngine::data2mVFromAdBit(24), 16777216.0 / 5000.0);
+        QCOMPARE(MeasurementEngine::data2mVFromAdBit(18), 1048576.0 / 4096.0);  // default→20bit
+    }
     void zeroConstant() {
         MeasurementEngine e;
         QVector<uint32_t> f(4, 1000);          // 4 通道，恒值 1000

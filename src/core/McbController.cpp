@@ -40,6 +40,15 @@ void McbController::startUp() {
             if (m_be) {
                 const DMINFO d = m_be->getDmInfo(0);
                 if (d.nAllChnNum > 0) m_be->setChannelCount(int(d.nAllChnNum));
+                // 实际 AD 位数 → mV 换算系数（对照 MCB_TESTView DVREADY 后
+                // GETDMADBIT + m_DATA2mV switch；实机 CX1664DE=16bit）
+                m_adBit = m_be->getDmAdBit();
+                if (m_engine) {
+                    MeasurementEngine::Config cfg = m_engine->config();
+                    cfg.adBit = m_adBit;
+                    cfg.data2mV = MeasurementEngine::data2mVFromAdBit(m_adBit);
+                    m_engine->applyConfig(cfg);
+                }
             }
             emit deviceReady();
         }

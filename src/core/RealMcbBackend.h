@@ -44,6 +44,7 @@ public:
     bool getDeviceReady() override;
     bool getRunStatus() override;
     DMINFO getDmInfo(int nMCB) override;
+    int getDmAdBit() override;
 
 private:
     static StatusCb s_status;

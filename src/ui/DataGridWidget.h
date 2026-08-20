@@ -37,6 +37,10 @@ public:
     // 设备就绪后按 GETDMINFO 几何建表：channels=rowNum*colNum、admCount=DM 模块数
     void setGeometry(int channels, int rowNum, int admCount);
 
+    // 注入实际 AD 位数（DVREADY 后 GETDMADBIT，实机 CX1664DE=16）：决定 mV 换算
+    // 系数与 ExDATA 标度（对照 MCB_TESTView.cpp:461-472 switch）
+    void setAdBit(int bit);
+
     int  pageCount() const;
     int  currentPage() const { return m_page; }
     void setPage(int page);
@@ -50,6 +54,8 @@ private:
     QTableView* m_view = nullptr;
     QStandardItemModel* m_model = nullptr;
     QLabel* m_pageLabel = nullptr;
+    class QPushButton* m_prevBtn = nullptr;
+    class QPushButton* m_nextBtn = nullptr;
 
     DisplayFormat m_fmt = DisplayFormat::Dec;
     int m_page = 0;
@@ -64,6 +70,14 @@ private:
 
     QVector<uint32_t> m_last;
     int m_lastMCB = -1;
+    // 帧扩展字（ExDATA 列数据源，仅前 5 行显示；对照 FrameEx 填充链）
+    int32_t m_ex[5] = {0, 0, 0, 0, 0};
+    bool m_hasEx = false;
+    // mV 换算：m_data2mV=ADC 标度（v/系数→mV）、m_exD2mV=exdata 专用标度。
+    // 默认 20bit；setAdBit 后按 Windows GETDMADBIT switch 更新
+    int m_adBit = 20;
+    double m_data2mV = 1048576.0 / 4096.0;
+    double m_exD2mV = 1048576.0 / 10000.0;
     // 原始帧刷新节流：连续采集 10fps×1280 格全量 setText 会让 GUI 线程饱和
     // （曾致"开始采集后无响应"），改为脏标记 + 250ms 合并刷新
     QTimer* m_flushTimer = nullptr;
@@ -76,11 +90,13 @@ private:
     int m_inlSub = 0;   // Inl 模式 5 子视图：0 INL‰ 1 DIV% 2 r 3 a 4 b
 
     void rebuildModel();
+    int  pageDataCols() const;   // 当前页数据列数（ADM+尾列 ExDATA，按剩余数收缩）
     void refreshFromCache();
     void refreshMeasurement();
     void refreshCurrent();   // 按当前模式派发
     void refreshHeader();
     void maybeResize();      // 一次性列宽自适应（防 … 省略号；不用 ResizeToContents 常驻防 GUI 饱和）
     QString formatValue(uint32_t v) const;
+    QString formatEx(int32_t v) const;   // ExDATA 三态：%06X / %u / ex÷exD2mV %.3f
     static QString colorFor(uint32_t v, uint32_t lo, uint32_t hi);
 };

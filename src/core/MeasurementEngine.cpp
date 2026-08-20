@@ -7,6 +7,14 @@ static constexpr double kInlScaleToMv = 3355.4432;   // 2^25/10^4（Windows INL 
 static constexpr double kInlFsrMv = 5000.0;          // INL 满量程
 static constexpr uint32_t kInlDaMin = 100;           // DAMIN
 
+double MeasurementEngine::data2mVFromAdBit(int bit) {
+    switch (bit) {
+    case 16: return 65536.0 / 5000.0;
+    case 24: return 16777216.0 / 5000.0;
+    default: return 1048576.0 / 4096.0;   // 20bit 及其他（对照 Windows default 分支）
+    }
+}
+
 void MeasurementEngine::reset(int nMCB) {
     int i = idx(nMCB);
     QMutexLocker lk(&m_mutex);

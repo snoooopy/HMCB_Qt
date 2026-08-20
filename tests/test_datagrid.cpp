@@ -21,6 +21,11 @@ private slots:
     void dataAppears();
     void columnWidthShowsFull();
     void formatSwitchRelabels();
+    void sixteenBitMvScale();
+    void actualColumnsNoGhostAdm();
+    void exDataFirstFiveRows();
+    void hexSixDigits();
+    void lastPageFewerColumns();
 
 private:
     Mcb::McbFrame makeFrame(int adm, int rows, uint32_t seed);
@@ -110,6 +115,81 @@ void TestGrid::formatSwitchRelabels() {
     QCOMPARE(m->headerData(0, Qt::Horizontal).toString(), QStringLiteral("Vo(HEX)"));
     g.setDisplayFormat(DataGridWidget::DisplayFormat::mV);
     QCOMPARE(m->headerData(0, Qt::Horizontal).toString(), QStringLiteral("Vo(mV)"));
+}
+
+// mV 换算按实际 AD 位数（对照 MCB_TESTView.cpp:461-472 的 GETDMADBIT switch：
+// 16→65536/5000、20→1048576/4096、24→16777216/5000）。实机 CX1664DE 为 16bit，
+// 旧实现硬编码 20bit（÷256），16bit 显示值偏大 19.5 倍。
+void TestGrid::sixteenBitMvScale() {
+    DataGridWidget g;
+    g.setGeometry(128, 64, 1);
+    g.setAdBit(16);
+    g.setDisplayFormat(DataGridWidget::DisplayFormat::mV);
+    Mcb::McbFrame f = makeFrame(1, 128, 0);
+    f.channels[0] = 65536;                   // 满量程 → 5000 mV（Windows %.3f）
+    f.channels[1] = 32768;                   // 半量程 → 2500 mV
+    g.updateFrame(0, f);
+    QTest::qWait(320);
+    auto* m = g.findChild<QStandardItemModel*>();
+    QCOMPARE(m->item(0, 1)->text(), QStringLiteral("5000.000"));
+    QCOMPARE(m->item(1, 1)->text(), QStringLiteral("2500.000"));
+}
+
+// 实机几何（1 DM）：只建 ADM00 + ExDATA 两数据列，无幽灵 ADM01-09 空列
+// （对照 Windows 截图：仅 Vo(HEX)/ADM00/ExDATA 三列）
+void TestGrid::actualColumnsNoGhostAdm() {
+    DataGridWidget g;
+    g.setGeometry(128, 64, 1);
+    auto* m = g.findChild<QStandardItemModel*>();
+    QCOMPARE(m->columnCount(), 3);           // 行标 + ADM00 + ExDATA
+    QCOMPARE(m->headerData(1, Qt::Horizontal).toString(), QStringLiteral("ADM00"));
+    QCOMPARE(m->headerData(2, Qt::Horizontal).toString(), QStringLiteral("ExDATA"));
+    QCOMPARE(g.pageCount(), 1);
+}
+
+// ExDATA 列仅前 5 行显示帧扩展数据（对照 MCB_TESTView.cpp:2110 `i<5` 与
+// FrameEx 填充链：ex[0]=ain0、[1]=ptsmH>>16、[2]=ptsmH&0xffff、
+// [3]=ptsmL>>16、[4]=ptsmL&0xffff），第 6 行起空白
+void TestGrid::exDataFirstFiveRows() {
+    DataGridWidget g;
+    g.setGeometry(128, 64, 1);
+    g.setDisplayFormat(DataGridWidget::DisplayFormat::Hex);
+    Mcb::McbFrame f = makeFrame(1, 128, 0);
+    f.ain0  = 0x008000;
+    f.ptsmH = 0x00F00000;
+    f.ptsmL = 0x000064F0;
+    g.updateFrame(0, f);
+    QTest::qWait(320);
+    auto* m = g.findChild<QStandardItemModel*>();
+    QCOMPARE(m->item(0, 2)->text(), QStringLiteral("008000"));   // ain0（截图同值）
+    QCOMPARE(m->item(1, 2)->text(), QStringLiteral("0000F0"));   // ptsmH>>16
+    QCOMPARE(m->item(2, 2)->text(), QStringLiteral("000000"));   // ptsmH&0xffff
+    QCOMPARE(m->item(3, 2)->text(), QStringLiteral("000000"));   // ptsmL>>16
+    QCOMPARE(m->item(4, 2)->text(), QStringLiteral("0064F0"));   // ptsmL&0xffff
+    QCOMPARE(m->item(5, 2)->text(), QString());                  // 第 6 行起空白
+}
+
+// HEX 格式 %06X 六位大写（对照 Windows %06X 与截图 00FFFF），无 0x 前缀
+void TestGrid::hexSixDigits() {
+    DataGridWidget g;
+    g.setGeometry(128, 64, 1);
+    g.setDisplayFormat(DataGridWidget::DisplayFormat::Hex);
+    Mcb::McbFrame f = makeFrame(1, 128, 0);
+    f.channels[0] = 0xFFFF;
+    g.updateFrame(0, f);
+    QTest::qWait(320);
+    QCOMPARE(g.findChild<QStandardItemModel*>()->item(0, 1)->text(),
+             QStringLiteral("00FFFF"));
+}
+
+// 尾页列数按剩余 ADM 收缩（25 ADM + ExDATA=26 列 → 页 2 仅 6 数据列）
+void TestGrid::lastPageFewerColumns() {
+    DataGridWidget g;
+    g.setGeometry(128, 32, 25);
+    g.setPage(2);
+    auto* m = g.findChild<QStandardItemModel*>();
+    QCOMPARE(m->columnCount(), 7);           // 行标 + ADM20..24 + ExDATA
+    QCOMPARE(m->headerData(6, Qt::Horizontal).toString(), QStringLiteral("ExDATA"));
 }
 
 Mcb::McbFrame TestGrid::makeFrame(int adm, int rows, uint32_t base) {

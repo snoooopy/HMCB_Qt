@@ -417,6 +417,8 @@ void MainWindow::onDeviceReady() {
         const int rows = d.nRowNum * d.nColNum;
         if (rows > 0 && d.nDMNum > 0)
             m_grid->setGeometry(rows, d.nRowNum, d.nDMNum);
+        // 实际 AD 位数（GETDMADBIT）：mV 换算/ExDATA 标度依据（实机 16bit）
+        m_grid->setAdBit(m_ctrl->adBit());
         m_graph->setBoard(0);
         m_one->setBoard(0);
         m_one->setModuleGeometry(d.nRowNum, d.nColNum, d.nDMNum);
