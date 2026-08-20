@@ -67,9 +67,11 @@ private:
     QAction* m_aSaveImg = nullptr;   // Save Image Data（菜单+工具栏同动作）
     bool m_bSaveImg = true;          // MCB_TEST.ini [FILE] SAVEIMGFILE（缺省 1）
 
-    // Windows Enable(!m_bStart && m_bDVReady) 的动态门控动作
+    // Windows Enable(!m_bStart && m_bDVReady) 的动态门控动作（采集期间禁用）；
+    // m_stopGateActions 反相（仅采集运行中启用，对照 Stop: m_bStart&&DVREADY）
     void setReadyGated(bool enabled);
     QList<QAction*> m_readyGateActions;
+    QList<QAction*> m_stopGateActions;
     bool m_ready = false;
 
     McbController* m_ctrl;

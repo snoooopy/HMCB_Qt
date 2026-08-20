@@ -107,6 +107,9 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     });
 
     if (m_ctrl) wireController();
+    // 初始未就绪：停止态/运行态两组按钮全部禁用（对照 Windows 启动即灰的
+    // OnUpdate* 系，如截图 Stop 灰按钮；DVREADY 后 setReadyGated(true) 放开）
+    setReadyGated(false);
 }
 
 void MainWindow::buildActions() {
@@ -202,6 +205,7 @@ void MainWindow::buildMenus() {
     fileMenu->addSeparator();
     auto* aExit = fileMenu->addAction(QStringLiteral("Exit(&X)"));
     connect(aExit, &QAction::triggered, this, &MainWindow::onExit);
+    m_readyGateActions += { aExit };   // Windows: !m_bStart||m_bStop（采集中禁退）
 
     // MCB Control(&M)
     auto* ctrlMenu = menuBar()->addMenu(QStringLiteral("MCB Control(&M)"));
@@ -209,10 +213,13 @@ void MainWindow::buildMenus() {
     auto* aStop  = ctrlMenu->addAction(QStringLiteral("Stop(&P)"));
     connect(aStart, &QAction::triggered, this, &MainWindow::onStart);
     connect(aStop,  &QAction::triggered, this, &MainWindow::onStop);
+    m_readyGateActions += { aStart };                 // Windows: !start&&ready
+    m_stopGateActions   += { aStop };                 // Windows: m_bStart&&DVREADY&&!m_bStop
     ctrlMenu->addMenu(QStringLiteral("Trigger"))->addActions(
         {m_aTrigInner, m_aTrigOuter, m_aTrigCascade});
     auto* aReconn = ctrlMenu->addAction(QStringLiteral("Reconnect(&C)"));
     connect(aReconn, &QAction::triggered, this, &MainWindow::onReconnect);
+    m_readyGateActions += { aReconn };                // Windows: Enable(!m_bStart)
 
     // Data View(&D)
     auto* viewMenu = menuBar()->addMenu(QStringLiteral("Data View(&D)"));
@@ -238,6 +245,8 @@ void MainWindow::buildMenus() {
     connect(aXdif, &QAction::triggered, this, &MainWindow::onMeasureXdif);
     auto* aGain = measMenu->addAction(QStringLiteral("Gain automatic calibration"));
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
+    // 测量类命令：停止态+就绪才可用（对照各 OnUpdateMeasureXxx !m_bStart&&m_bDVReady）
+    m_readyGateActions += { aVz, aVn, aVnd, aInl, aXdif, aGain };
     measMenu->addSeparator();
     measMenu->addAction(m_aTestMode);
     auto* aSetDmRange = measMenu->addAction(QStringLiteral("Set DM Range"));
@@ -273,6 +282,9 @@ void MainWindow::buildMenus() {
     m_aFndmNsContinued->setCheckable(true);
     connect(m_aFndmNsContinued, &QAction::triggered, this, &MainWindow::onFndmNsContinued);
     if (fnd) m_readyGateActions += { aFndmDe };        // 采集期间关（子菜单随 fnsMenu 整体）
+    // 共享动作（触发/模式/发数）：同 !m_bStart&&m_bDVReady 门控
+    m_readyGateActions += { m_aTrigInner, m_aTrigOuter, m_aTrigCascade,
+                            m_aTestMode, m_aSendAll };
 
     // Tools（Set New IP 已实现；其余 Phase 4）
     auto* toolsMenu = menuBar()->addMenu(QStringLiteral("Tools"));
@@ -306,10 +318,12 @@ void MainWindow::buildToolBar() {
     tb->addSeparator();
     auto* aStart = tb->addAction(IC("start"), QStringLiteral("Start"));
     connect(aStart, &QAction::triggered, this, &MainWindow::onStart);
+    m_readyGateActions += { aStart };
     tb->addAction(m_aTrigInner);
     tb->addAction(m_aTrigOuter);
     auto* aStop = tb->addAction(IC("stop"), QStringLiteral("Stop"));
     connect(aStop, &QAction::triggered, this, &MainWindow::onStop);
+    m_stopGateActions += { aStop };
     tb->addSeparator();
     auto* aVz  = tb->addAction(IC("zero"), QStringLiteral("Zero"));
     connect(aVz, &QAction::triggered, this, &MainWindow::onMeasureVzero);
@@ -323,6 +337,7 @@ void MainWindow::buildToolBar() {
     connect(aXdifTb, &QAction::triggered, this, &MainWindow::onMeasureXdif);
     auto* aGain = tb->addAction(IC("gain_calib"), QStringLiteral("Gain automatic calibration"));
     connect(aGain, &QAction::triggered, this, &MainWindow::onMeasureGain);
+    m_readyGateActions += { aVz, aVn, aVnd, aInl, aXdifTb, aGain };
     tb->addAction(m_aTestMode);
     auto* aFndmSetTb = tb->addAction(IC("fndm"),
         QStringLiteral("Set FNDM Parameteret &&  Scan Neutron Spectrum"));
@@ -341,6 +356,7 @@ void MainWindow::buildToolBar() {
     tb->addSeparator();
     auto* aExit = tb->addAction(IC("exit"), QStringLiteral("Exit"));
     connect(aExit, &QAction::triggered, this, &MainWindow::onExit);
+    m_readyGateActions += { aExit };
 }
 
 void MainWindow::buildStatusBar() {
@@ -624,10 +640,13 @@ void MainWindow::onSaveImageData() {
     m_log->appendMessage(QStringLiteral("已保存：%1（%2 帧）").arg(path).arg(frames.size()), 0);
 }
 
-// Windows Enable(!m_bStart && m_bDVReady)：就绪后开，采集期间关
+// Windows Enable(!m_bStart && m_bDVReady)：就绪后开，采集期间关；
+// Stop 组反相（m_bStart&&DVREADY&&!m_bStop），未就绪时两组皆禁
 void MainWindow::setReadyGated(bool enabled) {
     for (QAction* a : m_readyGateActions)
         a->setEnabled(enabled && m_ready);
+    for (QAction* a : m_stopGateActions)
+        a->setEnabled(!enabled && m_ready);
 }
 
 void MainWindow::onSaveResult() {
