@@ -2,7 +2,7 @@
 
 > 现象：程序连接设备成功后设备断电，短时间断电重连成功；断电一晚上后设备上电**永远无法重连**。Windows 版与 Linux 版库均存在。
 > 库版本：libmcbctrl.so.1.0.0.131（Ver-1.3.3，libMcbctrl_HMCB_20260421）
-> 状态：**仅方案，未修改任何源文件**
+> 状态：§2/§3 断电 fd 泄漏修复**仅方案、未实施**；§8 拔线闪退修复**已实施并重编部署**（2026-09-08）
 
 ---
 
@@ -298,3 +298,35 @@ watch -n10 "ls /proc/$pid/fd | wc -l"
 | CheckDVReadySts（10s 兜底重试） | MCBCtrlC.cpp:4085-4117 |
 | MCBTimer（200ms 定时线程） | MCBCtrl.cpp:338-369 |
 | 库 CMakeLists（catkin 依赖，重编绕开） | libMcbctrl_HMCB_20260421/CMakeLists.txt |
+
+---
+
+## 8. 姊妹问题：拔网线后程序闪退（已修复，2026-09-08）
+
+### 8.1 现象与根因
+
+连接成功后拔设备网线，数秒后程序段错误退出。journal 三次崩溃崩点一致：`libmcbctrl+0x7cd42`，符号反解 = **`CRequestSocket::Connect()` 启动的接收线程 lambda**。
+
+UAF 机制：`RequestSocket.cpp:307` 接收线程 `detach` 后无限轮询（唯一退出条件 `m_socket==NULL`）；拔线 5s 热包超时 → `InitialMCB_HMCB4` → `ConnectClose`（MCBCtrlC.cpp:3180）在另一线程直接 `delete m_pDataSocket` → 接收线程继续访问已销毁对象 → SIGSEGV。
+
+### 8.2 实施的修复（共 3 个崩点，逐一暴露逐一消灭）
+
+| # | 崩点偏移 | 位置 | 根因 | 修复 |
+|---|---|---|---|---|
+| ① | 0x7cd42 | `RequestSocket.cpp:287-307` | 接收线程 detach + 对象被另一线程 delete | `Close()`/析构先 `join` 接收线程再释放 socket；线程改 `[this]` 显式捕获+`std::atomic<bool> m_bStopThread` 停止标志+句柄存成员不 detach；`Connect()` 重连前先停旧线程；connect 失败分支补 socket 释放 |
+| ② | 0x6ff38 | `CRequestSocket::Close()+0x158`（修复①引出） | 数据 socket 绑**局部** `io_service`（Connect 栈上，返回即亡），补上 `delete m_socket` 后析构访问已亡 io_service → GPF | `io_service m_iosrv;` 提为对象成员（`RequestSocket.h`） |
+| ③ | 0x3a21a | `asio basic_socket::close()+0xea`（修复②后又活得久而暴露） | **CTRL socket 同型问题**：`ETH_init`（ETH_func.cpp:106）局部 `io_service iosrv` + socket 长期存活，`ETH_CTRL_close→fd_mcb->close()` 访问已亡 io_service | `ETH_init` 内改 `static io_service g_ctrl_iosrv;` |
+
+改动文件：`src/RequestSocket.h`（+成员/声明/include）、`src/RequestSocket.cpp`（7 处）、`src/ETH_func.cpp`（1 处）。原文件均已备份 `*.orig`；**注意 ②③ 属于全局性病根，§2 修改 2/3 实施 `delete fd_mcb` 时 io_service 生命周期已被本修复兜住**。
+
+### 8.3 编译与验证（已完成）
+
+- 重编：g++ 直编（同 §4 命令），产物替换 `libmcbctrl.so.1.0.0.131`，原件备份 `.orig`，dist 包 `lib/` 已同步
+- 复现/验证手段：`/tmp/fake_mcb.py`（假设备 127.0.0.1:1024/1028，accept 不应答=等价拔线触发）+ `/tmp/hmcb_repro.cpp`（60s 存活探针，配置 `/tmp/hmcb_repro_cfg`）
+- 结果：**原版库 SIGSEGV(139) 稳定复现 → 修复版 12 轮重连重试全存活，退出码 0，打印 SURVIVED**
+- 回归：`nm -D` 导出符号完好；Qt 工程 14/14 单测全绿
+
+### 8.4 遗留说明
+
+- 拔线场景的 CTRL fd 泄漏（§1 根因）本次未修——拔线一整晚仍会 fd 耗尽后"连不上"（但不再崩溃）；待 §2/§3 三项必修实施后一并消除
+- 用户实机拔线复测：拔线→程序存活报断链状态，插回→≤10s 自动重连（AUTOCONNECT=1）
