@@ -404,3 +404,45 @@ ip route 无 192.111.111.x 路由
 1. 检查网线两端（PC 的 `enp2s0` 口与设备/交换机）是否插紧、交换机是否上电；可用 `! ip -br link` 观测——插好时 enp2s0 应变为 UP 且不再显示 NO-CARRIER；
 2. 链路恢复后确认 `ip addr` 里 enp2s0 有 192.111.111.x 的地址（NetworkManager 静态 profile 应自动恢复，若没有需手动配置）；
 3. 链路与 IP 就绪后重启 HMCB_Qt 程序——按 v4 行为，设备在线时 ≤15s 内应自动重连（DVREADY）。
+
+---
+
+## 10. Reconnect 菜单闪退（已修复，v5，2026-09-08）
+
+### 10.1 现象与根因
+
+设备连接成功后点 MCB Control→Reconnect，程序段错误。journal 崩点稳定复现（两次 13:45 记录一致）：`libmcbctrl+0x721a5 = CMCBThread::MCBCommand+0x405，segfault at 8`（读空 this+8）。
+
+根因在 `MCBCtrl.cpp` 的 `MCB_CMD_CLOSE` Linux 分支——**detached 线程与主线程 delete 的竞态**：
+
+```cpp
+std::thread th([=]{ gpMCBThread->MCBCommand(MCB_CMD_CLOSE, 0); });  // detached
+th.detach();
+gbMCBTimer = false;
+delete gpMCBThread;      // ← 不等上面的线程！
+gpMCBThread = NULL;      // ← detached 线程随后读全局 → NULL->MCBCommand(...) → 崩
+```
+
+Reconnect 链路 = `MainWindow::onReconnect → shutdown() → MCB_CMD_CLOSE`，每次必中竞态窗口（实测 3/3：segfault×2 + bus error×1）。Windows 分支用 PostThreadMessage（消息队列）天然串行，所以 Windows 版没事——又一个 Linux 移植缺陷。
+
+### 10.2 修复（v5，MCBCtrl.cpp 五处补丁，源码备份 MCBCtrl.cpp.orig）
+
+| 补丁 | 内容 |
+|---|---|
+| P0 | 全局 `std::atomic<int> g_onTimerActive{0}` / `std::atomic<bool> g_onTimerQuit{false}` + `#include <atomic>` |
+| P1 | CLOSE 分支去掉 detached 包装，**同步**执行：置退出标志 → 自旋等在飞 OnTimer 轮结束（≤2s 上限；链路健康时一轮毫秒级，GUI 无感）→ `MCBCommand(CLOSE)` → delete |
+| P2 | OnTimer 启动 lambda 计数包裹：`++active` 在 quit 检查**之前**（与 CLOSE 的"先置 quit 再等 active==0"构成闭环，双向时序都安全） |
+| P3 | INITIAL 分支起 MCBTimer 前重置 `g_onTimerQuit=false` |
+
+配套消除的隐患：原 `usleep(400*1000)` 排在 delete **之后**（等了个寂寞）；MCBTimer 每 200ms 起的 detached OnTimer 线程同样是读全局裸指针，现在有退出标志+计数保护。
+
+### 10.3 验证
+
+| 场景 | 结果 |
+|---|---|
+| 对照组（v4 库）INITIAL→3s→CLOSE ×3 | **3/3 崩溃**（exit 139/139/135，均在 sending CLOSE 后） |
+| 修复组（v5）同场景 ×3 | **3/3 SURVIVED（exit 0）** |
+| 修复组完整序列：INITIAL→(CLOSE→300ms→INITIAL)×5 轮 | SURVIVED，exit 0 |
+| ctest | 14/14 全绿 |
+
+部署：`libmcbctrl.so.1.0.0.131`（740392 字节，v5）已替换库目录 + dist 包；v4 备份为 `.v4`。**程序需重启后生效**。
