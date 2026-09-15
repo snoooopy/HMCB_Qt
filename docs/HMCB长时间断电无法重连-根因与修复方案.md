@@ -2,7 +2,7 @@
 
 > 现象：程序连接设备成功后设备断电，短时间断电重连成功；断电一晚上后设备上电**永远无法重连**。Windows 版与 Linux 版库均存在。
 > 库版本：libmcbctrl.so.1.0.0.131（Ver-1.3.3，libMcbctrl_HMCB_20260421）
-> 状态（2026-09-09 终验通过 ✅）：§2/§3 五项修复**已实施并重编部署**（v4 库）；§1 的"fd 泄漏"根因**经实测推翻**（asio connect 失败会自动关闭 fd，见 §1.1 勘误）；§8 拔线闪退修复已实施（v3）；§9 = "插回网线不能重连"调查结论（**PC 有线网口无链路，环境问题非程序缺陷**）；§10 = Reconnect 闪退修复（v5）；§11 = 原版库真机断电实验——"过夜连不上"归因闭环（原版库断电即崩，v3 已修）；**§11.4 = 终验通过：v5 库断电 5 小时 26 分 ×2417 轮重试零崩溃零漂移，上电后链路一恢复下一轮重试即成功（1ms 握手 + 3.3s 到 DVREADY）——问题闭环**。
+> 状态（2026-09-09 终验通过 ✅）：§2/§3 五项修复**已实施并重编部署**（v4 库）；§1 的"fd 泄漏"根因**经实测推翻**（asio connect 失败会自动关闭 fd，见 §1.1 勘误）；§8 拔线闪退修复已实施（v3）；§9 = "插回网线不能重连"调查结论（**PC 有线网口无链路，环境问题非程序缺陷**）；§10 = Reconnect 闪退修复（v5）；§11 = 原版库真机断电实验——"过夜连不上"归因闭环（原版库断电即崩，v3 已修）；**§11.4 = 终验通过：v5 库断电 5 小时 26 分 ×2417 轮重试零崩溃零漂移，上电后链路一恢复下一轮重试即成功（1ms 握手 + 3.3s 到 DVREADY）——问题闭环**；§12 = 断电自动重连进行中点 Reconnect 闪退修复（v6：全工作线程守卫 + CLOSE 等待 2s→20s 超时宁泄漏不崩溃，2026-09-15）。
 
 ---
 
@@ -504,3 +504,65 @@ v5 探针连真机 → **断电 5 小时 26 分**（09:12–14:38，模拟过夜
 ```
 
 **结论：原"过夜断电无法重连"问题在 v5 库上不复存在。** 原版库的同场景结局=断电 3 秒内 SIGSEGV（§11.1）。
+
+---
+
+## 12. 断电自动重连进行中点 Reconnect 闪退（已修复，v6，2026-09-15）
+
+### 12.1 现象与取证
+
+设备断电后软件进入自动重连（OnTimer 轮：CheckConnect → ConnectOpen，每轮 ~8s，其中 connect 阻塞 3s×MCBNUM）。此时点击界面 Reconnect，程序异常退出。journal 两次崩溃记录：
+
+```
+Sep 15 09:39:30 HMCB_Qt[24620]: segfault at 0 ip ...4759b ... in libmcbctrl.so.1.0.0.131[4759b]
+  → nm -DC 反解 = CMCBCtrlC::WriteLogFile+0x3fb（空指针解引用）
+Sep 15 09:41:28 同型第二次
+```
+
+### 12.2 根因
+
+v5 的 CLOSE 分支只等待 `g_onTimerActive`（OnTimer 轮计数）归零，**上限 2s**（200×10ms）。断电自动重连轮在 connect 上阻塞 ~3s/MCB（MCBNUM=2 时一轮 6s+），2s 必然超时；超时后照样 `MCBCommand(CLOSE)` + `delete gpMCBThread`（析构连带 `delete m_pMCB` = 14.4KB 的 CMCBCtrlC）。在飞轮醒来后在已释放对象上操作成员 std::string → SIGSEGV。另外 INITIAL 的 th_tmp 分发线程与 default/SETRANGE 命令线程**完全无守卫**（v5 盲区）。
+
+### 12.3 复现（黑洞 IP + 毒化堆）
+
+- 黑洞 IP：`192.111.111.50`（同网段未用 IP，ARP 无应答 → connect 真阻塞 3s；10.255.255.1 无路由 4ms 即败不适用）。
+- 探针：INITIAL 后 DUR 秒自动重连进行中 CLOSE（`/tmp/hmcb_reconn_mid.cpp`）。
+- **`MALLOC_PERTURB_=170`**：glibc free 时把释放块覆写成毒值——小探针堆上 delete 后内存暂存导致 UB 静默（前 6 轮时机扫描全"存活"的假象即此；Qt 活跃堆上块被复用才显形为崩溃）。堆搅动 `malloc(16384)` 无效的原因：释放块 14744 字节，尺寸不匹配 glibc 永不复用该 chunk。
+- v5 库 DUR=11 + 毒化 → exit=139；gdb 回溯实锤：
+
+```
+#4 CMCBCtrlC::OnTimer() → #3 CheckHMCBStatus() → #2 CheckConnect()
+#1 CMCBCtrlC::InitialMCB_HMCB4()   ← 亡对象成员 string 操作
+#0 std::__cxx11::basic_string::_M_replace → SIGSEGV
+```
+
+与 journal 同构（自动重连轮在飞时 delete）；仅故障指令因垃圾值不同而异（毒化值 GPF vs Qt 堆清零复用 → segfault at 0）。
+
+### 12.4 修复（v6，提交 03840e0，仅 Linux 分支，六处）
+
+| # | 位置 | 内容 |
+|---|------|------|
+| P1 | 声明区 | 新增 `g_cmdActive`（命令线程计数）+ `g_cmdMutex`（check-quit+increment 与 CLOSE 置位互斥，关 TOCTOU 窗口） |
+| P2 | MCBTimer 派发 | `++g_onTimerActive` 移到**派发线程**（原在 lambda 内增计数，lambda 迟启动时 CLOSE 可见 0 → delete 后 lambda 才跑） |
+| P3/P5/P6 | INITIAL th_tmp / SETRANGE / default | 三处命令线程加守卫：CLOSE 进行中（quit 置位）丢弃新命令；否则计数后派发、结束递减 |
+| P4 | CLOSE 分支 | 等待 2s→**20s** 且条件改为 OnTimer+命令**全部**归零；归零才 `MCBCommand(CLOSE)`+delete；**超时跳过 delete 宁泄漏不崩溃**（对象保持有效，在飞轮触摸的是活内存）；两路径最后复位 quit |
+
+副作用说明：断电中点 Reconnect，CLOSE 会在 GUI 线程阻塞至多一个重连轮（实测 ≤ ~10s），之后正常重建连接——以短暂卡顿换取不崩溃。
+
+### 12.5 验证
+
+| 场景（全部 MALLOC_PERTURB_=170 毒化堆） | 结果 |
+|---|---|
+| v5 必崩场景 DUR=11 ×3 | 3/3 SURVIVED，且无 "worker busy"（走干净等待+delete 路径） |
+| 时机矩阵 DUR=2/4.5/7/8/11/15 | 全 SURVIVED |
+| INITIAL→3s→CLOSE ×3 + 快速交替 ×5 循环 | SURVIVED |
+| 导出符号 vs v5 | 零差异 |
+| Qt ctest | 14/14 绿 |
+
+部署：`libmcbctrl.so.1.0.0.131` 同名替换（md5 04f1bbbe…，v5 备份 `.v5`），库目录 + dist/HMCB_Qt_20260820 已同步，**程序重启生效**。
+
+构建命令（C++17；排除 RequestSocket_qt.cpp=Qt 变体符号冲突、StdAfx.cpp、ECS_funcnew.cpp=与 ECS_func.cpp 声明冲突）：
+
+```bash
+g++ -shared -fPIC -std=c++17 -O2 $(ls src/*.cpp | grep -vE "RequestSocket_qt|StdAfx|ECS_funcnew") -Isrc -o libmcbctrl.so.1.0.0.131 -lpthread
+```
