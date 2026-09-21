@@ -70,7 +70,10 @@ set_target_properties(HMCB_Qt PROPERTIES
 # 运行期在可执行目录提供 config。
 # 注意不能挂 POST_BUILD：仅改配置文件（无代码变化）时目标不重链、配置不
 # 同步；custom_target 挂 ALL 每次构建都拷（copy_directory 开销可忽略）。
+# 目的地不用 $<TARGET_FILE_DIR:...> genex：CMake ≤3.19 会为 custom_target
+# COMMAND 里的 target genex 建隐式依赖（sync_config→HMCB_Qt），与下面的
+# add_dependencies 成环；RUNTIME_OUTPUT_DIRECTORY 即 CMAKE_BINARY_DIR，直写等价。
 add_custom_target(sync_config ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/../config" "$<TARGET_FILE_DIR:HMCB_Qt>/config")
+        "${CMAKE_CURRENT_SOURCE_DIR}/../config" "${CMAKE_BINARY_DIR}/config")
 add_dependencies(HMCB_Qt sync_config)

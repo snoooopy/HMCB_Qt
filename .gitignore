@@ -25,3 +25,6 @@ tests/*_autogen/
 /tests/test_*
 !/tests/test_*.cpp
 /dist/
+tools/pack_compat/qtbase.7z
+tools/pack_compat/icu.7z
+tools/pack_compat/icu.sha1
