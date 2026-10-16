@@ -104,6 +104,20 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
         m_stData->setText(QStringLiteral("%1 帧").arg(m_frameCount));
         m_stDI->setText(QStringLiteral("DI: 0x%1").arg(m_lastDI, 0, 16));
         m_sidebar->setCounts(0, m_lastSC, m_lastPC);
+        // 数据速度：对照 MCB_TESTView.cpp:1846-1882（有样本才显示，同 m_MCBScount 门控）
+        if (m_speedBitsPerFrame > 0 && m_lastSC > 0 && m_speedClock.isValid()) {
+            const qint64 totalMs = qMax<qint64>(1, m_speedClock.elapsed());
+            const qint64 spanMs = qMax<qint64>(1, totalMs - m_speedLastMs);
+            const qlonglong delta = qMax<qlonglong>(0, m_lastSC - m_speedCnt0);
+            const qlonglong total = qMax<qlonglong>(0, m_lastSC - m_speedBaseSC + 1);
+            const double mbPerFrame = double(m_speedBitsPerFrame) / 8.0e6;   // Mb→MB
+            const double inst = delta * mbPerFrame / (double(spanMs) / 1000.0);
+            const double avg  = total * mbPerFrame / (double(totalMs) / 1000.0);
+            m_stSpeed->setText(QStringLiteral("Rate: %1 MB/s avg: %2 MB/s")
+                                   .arg(inst, 8, 'f', 3).arg(avg, 8, 'f', 3));
+            m_speedCnt0 = m_lastSC;
+            m_speedLastMs = totalMs;
+        }
     });
 
     if (m_ctrl) wireController();
@@ -362,13 +376,16 @@ void MainWindow::buildToolBar() {
 void MainWindow::buildStatusBar() {
     m_stRun    = new QLabel(QStringLiteral("IDLE"));
     m_stRate   = new QLabel(QStringLiteral("0 fps"));
+    m_stSpeed  = new QLabel(QStringLiteral("-- MB/s"));
     m_stData   = new QLabel(QStringLiteral("0 帧"));
     m_stDI     = new QLabel(QStringLiteral("DI: -"));
     m_stStatus = new QLabel(QStringLiteral("未就绪"));
-    for (auto* l : {m_stRun, m_stRate, m_stData, m_stDI, m_stStatus}) {
+    for (auto* l : {m_stRun, m_stRate, m_stSpeed, m_stData, m_stDI, m_stStatus}) {
         l->setMinimumWidth(90);
         statusBar()->addWidget(l);
     }
+    // 速度格同时显示瞬时+平均（对照 Windows Pane3 宽 230），给足固定宽避免每秒跳动
+    m_stSpeed->setMinimumWidth(230);
 }
 
 void MainWindow::wireController() {
@@ -420,6 +437,15 @@ void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
     if (m_aSaveImg && !m_aSaveImg->isEnabled() && m_bSaveImg)
         m_aSaveImg->setEnabled(true);     // 对照 OnUpdateSavedata：有帧数据才可用
     ++m_framesThisSec;
+    // 速度统计基点：本轮首帧记 base（实机每轮 START 后 scounter 从 1 起，Windows 直接
+    // 以绝对 scounter 作平均；mock/重连场景 scounter 不复位，取首帧差值更稳）；
+    // 回绕/设备重启时 scounter 变小 → 重置基点避免负速率
+    if (frame.scounter > 0) {
+        if (m_speedBaseSC == 0 || frame.scounter < m_speedCnt0)
+            m_speedBaseSC = frame.scounter;
+        if (m_speedCnt0 == 0 || frame.scounter < m_speedCnt0)
+            m_speedCnt0 = frame.scounter;
+    }
     // 只缓存，不做任何 setText（每帧 setText 在真机包率下饱和 GUI 线程；
     // 文本统一由 1Hz rateTimer 刷新，网格由 DataGridWidget 250ms 合并）
     m_lastSC = frame.scounter;
@@ -445,6 +471,16 @@ void MainWindow::onDeviceReady() {
         m_graph->setBoard(0);
         m_one->setBoard(0);
         m_one->setModuleGeometry(d.nRowNum, d.nColNum, d.nDMNum);
+        // 数据速度每帧位数（对照 MCB_TESTView.cpp:1867-1873 fSumRate）：
+        // Σ在线板(nDMNum×nRowNum×nColNum×adBit) bit/帧（HMCB4 实配 25×128×16=51200）
+        const uint32_t boards = qMax<uint32_t>(1, m_ctrl->getMcbNum());
+        qint64 bits = 0;
+        for (uint32_t b = 0; b < boards; ++b) {
+            const DMINFO di = m_ctrl->getDmInfo(int(b));
+            bits += qint64(di.nDMNum) * qint64(di.nRowNum) * qint64(di.nColNum)
+                    * qint64(m_ctrl->adBit());
+        }
+        m_speedBitsPerFrame = bits;
     }
 }
 
@@ -452,6 +488,13 @@ void MainWindow::onRunStateChanged(bool running) {
     if (running) {
         m_runSeconds = 0;
         m_framesThisSec = 0;
+        // 速度统计复位（对照 OnMcbStart:749-757：t/t0/tstart 取当前、uCnt/uCnt0 清零、
+        // Pane3 清空——Windows 依赖实机 scounter 每轮从 1 起，这里 base 置 0 待首帧）
+        m_speedClock.restart();
+        m_speedLastMs = 0;
+        m_speedCnt0 = 0;
+        m_speedBaseSC = 0;
+        m_stSpeed->setText(QStringLiteral("-- MB/s"));
         m_rateTimer->start();
     } else {
         m_rateTimer->stop();

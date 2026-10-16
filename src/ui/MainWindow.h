@@ -2,6 +2,7 @@
 #include <QMainWindow>
 #include "core/FndmParaBuilder.h"
 #include <QList>
+#include <QElapsedTimer>
 #include "core/McbTypes.h"
 
 class McbController;
@@ -100,9 +101,10 @@ private:
     QAction* m_aPrevPage = nullptr;
     QAction* m_aNextPage = nullptr;
 
-    // 状态栏 5 格
+    // 状态栏 6 格
     QLabel* m_stRun    = nullptr;   // 运行时间
     QLabel* m_stRate   = nullptr;   // 刷新速率
+    QLabel* m_stSpeed  = nullptr;   // 数据速度 MB/s（对照 Windows Pane3 Rate）
     QLabel* m_stData   = nullptr;   // 累计帧数
     QLabel* m_stDI     = nullptr;   // DI 寄存器
     QLabel* m_stStatus = nullptr;   // 设备状态
@@ -116,4 +118,13 @@ private:
     qlonglong m_lastSC = 0, m_lastPC = 0;
     uint32_t m_lastDI = 0;
     class QTimer* m_rateTimer = nullptr;
+
+    // 数据速度（对照 MCB_TESTView.cpp:1846-1882 Pane3 "Rate:%8.3fMb/s avg:%8.3fMb/s"：
+    // 每帧位数=Σ板(nDMNum×行×列×adBit)，瞬时=样本差×位数/tick间隔，平均=本轮样本×位数/运行时长；
+    // Windows 单位 Mb/s，本工程按需求以 MB/s 显示（÷8））
+    qint64 m_speedBitsPerFrame = 0;   // 每帧数据位数（DVREADY 后由几何+AD 位数求得）
+    qlonglong m_speedCnt0 = 0;        // 上一 tick 的 scounter（Windows m_uCnt0）
+    qlonglong m_speedBaseSC = 0;      // 本轮首帧 scounter（实机每轮从 1 起；0=本轮尚未见帧）
+    qint64 m_speedLastMs = 0;         // 上一 tick 的累计毫秒（Windows m_t0→m_t）
+    QElapsedTimer m_speedClock;       // 本轮计时（Windows m_tstart）
 };
