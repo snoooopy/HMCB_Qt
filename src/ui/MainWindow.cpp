@@ -96,9 +96,10 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     m_rateTimer = new QTimer(this);
     m_rateTimer->setInterval(1000);
     connect(m_rateTimer, &QTimer::timeout, this, [this]() {
+        const int fpsThisSec = m_framesThisSec;   // 先取本秒帧率（下方立即清零）
         ++m_runSeconds;
         m_stRun->setText(QStringLiteral("RUN %1s").arg(m_runSeconds));
-        m_stRate->setText(QStringLiteral("%1 fps").arg(m_framesThisSec));
+        m_stRate->setText(QStringLiteral("%1 fps").arg(fpsThisSec));
         m_framesThisSec = 0;
         // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）
         m_stData->setText(QStringLiteral("%1 帧").arg(m_frameCount));
@@ -115,6 +116,12 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
             const double avg  = total * mbPerFrame / (double(totalMs) / 1000.0);
             m_stSpeed->setText(QStringLiteral("Rate: %1 MB/s avg: %2 MB/s")
                                    .arg(inst, 8, 'f', 3).arg(avg, 8, 'f', 3));
+            // 真机联调观测（HMCB_SPEED_DEBUG=1 时每秒输出速率计算分量）
+            if (qEnvironmentVariableIsSet("HMCB_SPEED_DEBUG"))
+                qInfo("[speed] fps=%d SC=%lld base=%lld cnt0=%lld delta=%lld total=%lld "
+                      "spanMs=%lld totalMs=%lld bits=%lld inst=%.4f avg=%.4f",
+                      fpsThisSec, m_lastSC, m_speedBaseSC, m_speedCnt0, delta, total,
+                      spanMs, totalMs, m_speedBitsPerFrame, inst, avg);
             m_speedCnt0 = m_lastSC;
             m_speedLastMs = totalMs;
         }
@@ -472,7 +479,8 @@ void MainWindow::onDeviceReady() {
         m_one->setBoard(0);
         m_one->setModuleGeometry(d.nRowNum, d.nColNum, d.nDMNum);
         // 数据速度每帧位数（对照 MCB_TESTView.cpp:1867-1873 fSumRate）：
-        // Σ在线板(nDMNum×nRowNum×nColNum×adBit) bit/帧（HMCB4 实配 25×128×16=51200）
+        // Σ在线板(nDMNum×nRowNum×nColNum×adBit) bit/帧，几何/位数均取库实际值
+        // （MCBCtrl.ini [MCB]/[ADM]；本机 CX1664DE 现配 1×64×2×16=2048bit=256B/帧）
         const uint32_t boards = qMax<uint32_t>(1, m_ctrl->getMcbNum());
         qint64 bits = 0;
         for (uint32_t b = 0; b < boards; ++b) {

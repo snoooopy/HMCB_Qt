@@ -44,9 +44,12 @@ int main(int argc, char** argv) {
             QTimer::singleShot(800, &ctrl, [&ctrl] { ctrl.start(0); });
         });
 
-    // 无头截图钩子：HMCB_SNAPSHOT=<path> 时就绪后保存主窗口截图（UI 对齐核对用）
-    if (const auto snap = qEnvironmentVariable("HMCB_SNAPSHOT"); !snap.isEmpty())
-        QTimer::singleShot(3500, &w, [&w, snap] { w.grab().save(snap); });
+    // 无头截图钩子：HMCB_SNAPSHOT=<path> 时就绪后保存主窗口截图（UI 对齐核对用）；
+    // HMCB_SNAPSHOT_DELAY_MS 可调延时（默认 3500；真机 INITIAL 约 19s 时需加大）
+    if (const auto snap = qEnvironmentVariable("HMCB_SNAPSHOT"); !snap.isEmpty()) {
+        const int delay = qEnvironmentVariableIntValue("HMCB_SNAPSHOT_DELAY_MS");
+        QTimer::singleShot(delay > 0 ? delay : 3500, &w, [&w, snap] { w.grab().save(snap); });
+    }
 
     return app.exec();
 }
