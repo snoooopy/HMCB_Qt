@@ -9,7 +9,11 @@ OUT=/out
 
 WORK="$(mktemp -d)"
 DEMO="$WORK/HMCB_Demo"
-cp -a "$SRC" "$DEMO"
+# tar 排除构建树后复制：Qt Creator 的 build/Desktop_* 树中可能留有悬空符号链接
+# （如 .ninja_lock，新版 ninja 不再生成），cp -a 遇之报错且 set -e 中止出包；
+# 且构建树随后必被删除，排除还可省去数百 MB 无效拷贝。
+tar -C "$SRC" --exclude='./HMCB_Qt/build' --exclude='./HMCB_Qt/build_qmake' \
+    --exclude='./HMCB_Qt/dist' -cf - . | tar -C "$DEMO" -xf -
 QTDIR=/opt/Qt/6.4.3/gcc_64
 
 # 清掉宿主构建树/产物（CMake 缓存指向宿主路径，容器内必炸；dist 223M 白拷）
