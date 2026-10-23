@@ -12,6 +12,7 @@ DEMO="$WORK/HMCB_Demo"
 # tar 排除构建树后复制：Qt Creator 的 build/Desktop_* 树中可能留有悬空符号链接
 # （如 .ninja_lock，新版 ninja 不再生成），cp -a 遇之报错且 set -e 中止出包；
 # 且构建树随后必被删除，排除还可省去数百 MB 无效拷贝。
+mkdir -p "$DEMO/HMCB_Qt"   # cp 会自建目标目录，tar 不会
 tar -C "$SRC" --exclude='./HMCB_Qt/build' --exclude='./HMCB_Qt/build_qmake' \
     --exclude='./HMCB_Qt/dist' -cf - . | tar -C "$DEMO" -xf -
 QTDIR=/opt/Qt/6.4.3/gcc_64
