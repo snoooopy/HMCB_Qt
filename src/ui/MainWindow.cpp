@@ -101,16 +101,21 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
         m_stRun->setText(QStringLiteral("RUN %1s").arg(m_runSeconds));
         m_stRate->setText(QStringLiteral("%1 fps").arg(fpsThisSec));
         m_framesThisSec = 0;
-        // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）
+        // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）；
+        // 多盒时侧栏分板刷新（板数来自 GETMCBNUM，未就绪板保持 0）
         m_stData->setText(QStringLiteral("%1 帧").arg(m_frameCount));
-        m_stDI->setText(QStringLiteral("DI: 0x%1").arg(m_lastDI, 0, 16));
-        m_sidebar->setCounts(0, m_lastSC, m_lastPC);
+        m_stDI->setText(QStringLiteral("DI: 0x%1").arg(m_lastDI[0], 0, 16));
+        {
+            const uint32_t boards = qBound<uint32_t>(1, m_ctrl ? m_ctrl->getMcbNum() : 1, 8);
+            for (uint32_t b = 0; b < boards; ++b)
+                m_sidebar->setCounts(int(b), m_lastSC[b], m_lastPC[b]);
+        }
         // 数据速度：对照 MCB_TESTView.cpp:1846-1882（有样本才显示，同 m_MCBScount 门控）
-        if (m_speedBitsPerFrame > 0 && m_lastSC > 0 && m_speedClock.isValid()) {
+        if (m_speedBitsPerFrame > 0 && m_lastSC[0] > 0 && m_speedClock.isValid()) {
             const qint64 totalMs = qMax<qint64>(1, m_speedClock.elapsed());
             const qint64 spanMs = qMax<qint64>(1, totalMs - m_speedLastMs);
-            const qlonglong delta = qMax<qlonglong>(0, m_lastSC - m_speedCnt0);
-            const qlonglong total = qMax<qlonglong>(0, m_lastSC - m_speedBaseSC + 1);
+            const qlonglong delta = qMax<qlonglong>(0, m_lastSC[0] - m_speedCnt0);
+            const qlonglong total = qMax<qlonglong>(0, m_lastSC[0] - m_speedBaseSC + 1);
             const double mbPerFrame = double(m_speedBitsPerFrame) / 8.0e6;   // Mb→MB
             const double inst = delta * mbPerFrame / (double(spanMs) / 1000.0);
             const double avg  = total * mbPerFrame / (double(totalMs) / 1000.0);
@@ -120,9 +125,9 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
             if (qEnvironmentVariableIsSet("HMCB_SPEED_DEBUG"))
                 qInfo("[speed] fps=%d SC=%lld base=%lld cnt0=%lld delta=%lld total=%lld "
                       "spanMs=%lld totalMs=%lld bits=%lld inst=%.4f avg=%.4f",
-                      fpsThisSec, m_lastSC, m_speedBaseSC, m_speedCnt0, delta, total,
+                      fpsThisSec, m_lastSC[0], m_speedBaseSC, m_speedCnt0, delta, total,
                       spanMs, totalMs, m_speedBitsPerFrame, inst, avg);
-            m_speedCnt0 = m_lastSC;
+            m_speedCnt0 = m_lastSC[0];
             m_speedLastMs = totalMs;
         }
     });
@@ -446,8 +451,9 @@ void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
     ++m_framesThisSec;
     // 速度统计基点：本轮首帧记 base（实机每轮 START 后 scounter 从 1 起，Windows 直接
     // 以绝对 scounter 作平均；mock/重连场景 scounter 不复位，取首帧差值更稳）；
-    // 回绕/设备重启时 scounter 变小 → 重置基点避免负速率
-    if (frame.scounter > 0) {
+    // 回绕/设备重启时 scounter 变小 → 重置基点避免负速率。
+    // 多盒时速度以板 0 为基准（对照 Windows m_MCBScount[m_nMCB] 取当前选中板）
+    if (nMCB == 0 && frame.scounter > 0) {
         if (m_speedBaseSC == 0 || frame.scounter < m_speedCnt0)
             m_speedBaseSC = frame.scounter;
         if (m_speedCnt0 == 0 || frame.scounter < m_speedCnt0)
@@ -455,14 +461,23 @@ void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
     }
     // 只缓存，不做任何 setText（每帧 setText 在真机包率下饱和 GUI 线程；
     // 文本统一由 1Hz rateTimer 刷新，网格由 DataGridWidget 250ms 合并）
-    m_lastSC = frame.scounter;
-    m_lastPC = frame.pcounter;
-    m_lastDI = frame.regError_DI;
+    {
+        const int b = qBound(0, nMCB, 7);
+        m_lastSC[b] = frame.scounter;
+        m_lastPC[b] = frame.pcounter;
+        m_lastDI[b] = frame.regError_DI;
+    }
     m_grid->updateFrame(nMCB, frame);
 }
 
 void MainWindow::onDeviceReady() {
+    // DVREADY 为库级全局状态（全部盒 REGSET 完成才发）：所有在线板统一点亮
     m_sidebar->setBoardReady(0, true);
+    {
+        const uint32_t boards = qBound<uint32_t>(1, m_ctrl ? m_ctrl->getMcbNum() : 1, 8);
+        for (uint32_t b = 1; b < boards; ++b)
+            m_sidebar->setBoardReady(int(b), true);
+    }
     m_stStatus->setText(QStringLiteral("设备就绪"));
     m_ready = true;
     setReadyGated(true);        // 对照 Windows DVREADY 后放开停止态命令

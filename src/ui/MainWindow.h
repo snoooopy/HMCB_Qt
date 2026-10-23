@@ -115,8 +115,8 @@ private:
     int m_framesThisSec = 0;
     // 帧到达时只缓存值，状态栏/侧栏文本统一由 1Hz rateTimer 刷新
     // （对照 MFC OnTimer 1s 更新状态栏；真机包率下每帧 setText 会占满弱核 GUI）
-    qlonglong m_lastSC = 0, m_lastPC = 0;
-    uint32_t m_lastDI = 0;
+    qlonglong m_lastSC[8] = {0}, m_lastPC[8] = {0};   // 按板缓存（多盒时 1Hz tick 分板刷新）
+    uint32_t m_lastDI[8] = {0};
     class QTimer* m_rateTimer = nullptr;
 
     // 数据速度（对照 MCB_TESTView.cpp:1846-1882 Pane3 "Rate:%8.3fMb/s avg:%8.3fMb/s"：
