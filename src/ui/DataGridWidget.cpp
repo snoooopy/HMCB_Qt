@@ -168,8 +168,25 @@ void DataGridWidget::nextPage() { setPage(m_page + 1); }
 void DataGridWidget::prevPage() { setPage(m_page - 1); }
 
 void DataGridWidget::updateFrame(int nMCB, const Mcb::McbFrame& frame) {
-    m_last = frame.channels;
+    const int b = qBound(0, nMCB, 7);
+    m_frameByBoard[b] = frame;       // 各板最近帧缓存（切板立即呈现用）
+    m_hasFrame[b] = true;
     m_lastMCB = nMCB;
+    if (b != m_board) return;        // 非当前显示板：只缓存不刷新
+    applyFrame(frame);
+}
+
+void DataGridWidget::setCurrentBoard(int board) {
+    board = qBound(0, board, 7);
+    if (board == m_board) return;
+    m_board = board;
+    if (m_hasFrame[m_board])         // 立即呈现该板最近一帧
+        applyFrame(m_frameByBoard[m_board]);
+}
+
+void DataGridWidget::applyFrame(const Mcb::McbFrame& frame) {
+    m_last = frame.channels;
+    m_lastMCB = frame.nMCB;
     // ExDATA 列数据源（前 5 行）：对照 FrameEx 填充链
     m_ex[0] = int32_t(frame.ain0);
     m_ex[1] = int32_t(frame.ptsmH >> 16);

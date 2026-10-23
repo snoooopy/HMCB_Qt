@@ -36,6 +36,10 @@ StatusSidebar::StatusSidebar(QWidget* parent) : QWidget(parent) {
         grid->addWidget(r.pulse,  i + 1, 3);
         grid->addWidget(r.diff,   i + 1, 4);
         setBoardReady(i, false);
+        // 单选切换 → boardSelected（含下方默认 MCB0 的 setChecked(true) 那次）
+        connect(r.radio, &QRadioButton::toggled, this, [this, i](bool on) {
+            if (on) emit boardSelected(i);
+        });
     }
     m_boards[0].radio->setChecked(true);   // 默认选中 MCB0
 

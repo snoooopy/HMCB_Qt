@@ -19,6 +19,10 @@ public:
     // 当前选中的板号
     int selectedBoard() const;
 
+signals:
+    // 单选切换（含用户点击与程序 setChecked(true)），参数=新选中的板号
+    void boardSelected(int index);
+
 public slots:
     void clearAll();   // 全部置 NOT READY、计数清零
 

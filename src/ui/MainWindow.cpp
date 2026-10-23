@@ -98,12 +98,22 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     connect(m_rateTimer, &QTimer::timeout, this, [this]() {
         const int fpsThisSec = m_framesThisSec;   // 先取本秒帧率（下方立即清零）
         ++m_runSeconds;
-        m_stRun->setText(QStringLiteral("RUN %1s").arg(m_runSeconds));
+        // 运行时间：小时:分钟:秒（对照需求，原为 RUN %1s 纯秒）
+        m_stRun->setText(QStringLiteral("RUN %1:%2:%3")
+                             .arg(m_runSeconds / 3600, 2, 10, QLatin1Char('0'))
+                             .arg((m_runSeconds / 60) % 60, 2, 10, QLatin1Char('0'))
+                             .arg(m_runSeconds % 60, 2, 10, QLatin1Char('0')));
         m_stRate->setText(QStringLiteral("%1 fps").arg(fpsThisSec));
         m_framesThisSec = 0;
         // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）；
+        // 帧计数 = 选中板计数 + 全部板总计数（选中板与右侧栏单选/网格显示联动）；
         // 多盒时侧栏分板刷新（板数来自 GETMCBNUM，未就绪板保持 0）
-        m_stData->setText(QStringLiteral("%1 帧").arg(m_frameCount));
+        {
+            qlonglong total = 0;
+            for (int b = 0; b < 8; ++b) total += m_frameCount[b];
+            m_stData->setText(QStringLiteral("%1 帧 / 总 %2 帧")
+                                  .arg(m_frameCount[m_selectedBoard]).arg(total));
+        }
         m_stDI->setText(QStringLiteral("DI: 0x%1").arg(m_lastDI[0], 0, 16));
         {
             const uint32_t boards = qBound<uint32_t>(1, m_ctrl ? m_ctrl->getMcbNum() : 1, 8);
@@ -133,6 +143,19 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     });
 
     if (m_ctrl) wireController();
+    // 右侧栏 MCB 单选 → 选中板联动：网格显示、波形/单模块停靠窗、状态栏帧计数
+    connect(m_sidebar, &StatusSidebar::boardSelected, this, [this](int b) {
+        m_selectedBoard = b;
+        m_grid->setCurrentBoard(b);
+        m_graph->setBoard(b);
+        m_one->setBoard(b);
+        if (m_stData) {   // 立即切换帧计数显示（不等下一个 1Hz tick）
+            qlonglong total = 0;
+            for (int k = 0; k < 8; ++k) total += m_frameCount[k];
+            m_stData->setText(QStringLiteral("%1 帧 / 总 %2 帧")
+                                  .arg(m_frameCount[b]).arg(total));
+        }
+    });
     // 初始未就绪：停止态/运行态两组按钮全部禁用（对照 Windows 启动即灰的
     // OnUpdate* 系，如截图 Stop 灰按钮；DVREADY 后 setReadyGated(true) 放开）
     setReadyGated(false);
@@ -445,7 +468,8 @@ void MainWindow::onStatusMessage(const QString& text, int nMCB) {
 }
 
 void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
-    ++m_frameCount;
+    const int b = qBound(0, nMCB, 7);
+    ++m_frameCount[b];                // 按板累计（状态栏显示选中板 + 总数）
     if (m_aSaveImg && !m_aSaveImg->isEnabled() && m_bSaveImg)
         m_aSaveImg->setEnabled(true);     // 对照 OnUpdateSavedata：有帧数据才可用
     ++m_framesThisSec;
@@ -490,8 +514,8 @@ void MainWindow::onDeviceReady() {
             m_grid->setGeometry(rows, d.nRowNum, d.nDMNum);
         // 实际 AD 位数（GETDMADBIT）：mV 换算/ExDATA 标度依据（实机 16bit）
         m_grid->setAdBit(m_ctrl->adBit());
-        m_graph->setBoard(0);
-        m_one->setBoard(0);
+        m_graph->setBoard(m_selectedBoard);
+        m_one->setBoard(m_selectedBoard);
         m_one->setModuleGeometry(d.nRowNum, d.nColNum, d.nDMNum);
         // 数据速度每帧位数（对照 MCB_TESTView.cpp:1867-1873 fSumRate）：
         // Σ在线板(nDMNum×nRowNum×nColNum×adBit) bit/帧，几何/位数均取库实际值

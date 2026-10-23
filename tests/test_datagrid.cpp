@@ -26,6 +26,7 @@ private slots:
     void exDataFirstFiveRows();
     void hexSixDigits();
     void lastPageFewerColumns();
+    void boardSwitchShowsCachedFrame();
 
 private:
     Mcb::McbFrame makeFrame(int adm, int rows, uint32_t seed);
@@ -200,6 +201,29 @@ Mcb::McbFrame TestGrid::makeFrame(int adm, int rows, uint32_t base) {
     for (int i = 0; i < adm * rows; ++i)
         f.channels[i] = base + i;            // 确定值便于断言（7 位 DEC 文本，列宽有区分度）
     return f;
+}
+
+// 多板：setCurrentBoard 切板后立即呈现该板最近帧（与右侧栏 MCB 单选联动）
+void TestGrid::boardSwitchShowsCachedFrame() {
+    DataGridWidget g;
+    g.setGeometry(128, 32, 25);
+    const auto f0 = makeFrame(25, 128, 1000000);   // 板 0：基值 1000000
+    Mcb::McbFrame f1 = makeFrame(25, 128, 2000000); // 板 1：基值 2000000
+    f1.nMCB = 1;
+    g.updateFrame(0, f0);
+    g.updateFrame(1, f1);                          // 板 1 帧只入缓存，不改变显示
+    QTest::qWait(320);
+    auto* m = g.findChild<QStandardItemModel*>();
+    QCOMPARE(m->item(0, 1)->text(), QStringLiteral("1000000"));   // 仍显示板 0
+    //
+    g.setCurrentBoard(1);                          // 切到板 1：立即呈现其缓存帧
+    QTest::qWait(320);
+    QCOMPARE(m->item(0, 1)->text(), QStringLiteral("2000000"));
+    QCOMPARE(m->item(5, 3)->text(), QStringLiteral("2000261"));   // idx=2*128+5
+    //
+    g.updateFrame(0, makeFrame(25, 128, 3000000)); // 板 0 新帧不影响当前板 1 显示
+    QTest::qWait(320);
+    QCOMPARE(m->item(0, 1)->text(), QStringLiteral("2000000"));
 }
 
 int main(int argc, char** argv) {

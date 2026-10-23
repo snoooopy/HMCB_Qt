@@ -49,6 +49,8 @@ public slots:
     void nextPage();
     void prevPage();
     void updateFrame(int nMCB, const Mcb::McbFrame& frame);
+    // 切换显示的板（与右侧栏 MCB 单选联动）：立即呈现该板最近一帧
+    void setCurrentBoard(int board);
 
 private:
     QTableView* m_view = nullptr;
@@ -73,6 +75,11 @@ private:
     // 帧扩展字（ExDATA 列数据源，仅前 5 行显示；对照 FrameEx 填充链）
     int32_t m_ex[5] = {0, 0, 0, 0, 0};
     bool m_hasEx = false;
+    // 多板：显示板（与右侧栏 MCB 单选联动）+ 各板最近帧缓存（切板立即呈现）
+    int m_board = 0;
+    Mcb::McbFrame m_frameByBoard[8];
+    bool m_hasFrame[8] = {false};
+    void applyFrame(const Mcb::McbFrame& frame);   // 写入显示缓存并按节流刷新
     // mV 换算：m_data2mV=ADC 标度（v/系数→mV）、m_exD2mV=exdata 专用标度。
     // 默认 20bit；setAdBit 后按 Windows GETDMADBIT switch 更新
     int m_adBit = 20;
