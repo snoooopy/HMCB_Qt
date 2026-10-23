@@ -111,7 +111,7 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
         {
             qlonglong total = 0;
             for (int b = 0; b < 8; ++b) total += m_frameCount[b];
-            m_stData->setText(QStringLiteral("%1 帧 / 总 %2 帧")
+            m_stData->setText(QStringLiteral("Frames: %1 / Total: %2")
                                   .arg(m_frameCount[m_selectedBoard]).arg(total));
         }
         m_stDI->setText(QStringLiteral("DI: 0x%1").arg(m_lastDI[0], 0, 16));
@@ -152,7 +152,7 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
         if (m_stData) {   // 立即切换帧计数显示（不等下一个 1Hz tick）
             qlonglong total = 0;
             for (int k = 0; k < 8; ++k) total += m_frameCount[k];
-            m_stData->setText(QStringLiteral("%1 帧 / 总 %2 帧")
+            m_stData->setText(QStringLiteral("Frames: %1 / Total: %2")
                                   .arg(m_frameCount[b]).arg(total));
         }
     });
