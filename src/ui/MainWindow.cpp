@@ -96,14 +96,16 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     m_rateTimer = new QTimer(this);
     m_rateTimer->setInterval(1000);
     connect(m_rateTimer, &QTimer::timeout, this, [this]() {
-        const int fpsThisSec = m_framesThisSec[m_selectedBoard];   // 本秒帧率=选中板（下方清零全部）
+        const int fpsThisSec = m_framesThisSec[m_selectedBoard];   // 本秒帧率=选中板
+        int fpsTotal = 0;
+        for (int b = 0; b < 8; ++b) fpsTotal += m_framesThisSec[b];   // 全部板总帧率
         ++m_runSeconds;
         // 运行时间：小时:分钟:秒（对照需求，原为 RUN %1s 纯秒）
         m_stRun->setText(QStringLiteral("RUN %1:%2:%3")
                              .arg(m_runSeconds / 3600, 2, 10, QLatin1Char('0'))
                              .arg((m_runSeconds / 60) % 60, 2, 10, QLatin1Char('0'))
                              .arg(m_runSeconds % 60, 2, 10, QLatin1Char('0')));
-        m_stRate->setText(QStringLiteral("%1 fps").arg(fpsThisSec));
+        m_stRate->setText(QStringLiteral("%1 fps / Total: %2 fps").arg(fpsThisSec).arg(fpsTotal));
         for (int b = 0; b < 8; ++b) m_framesThisSec[b] = 0;
         // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）；
         // 帧计数 = 选中板计数 + 全部板总计数（选中板与右侧栏单选/网格显示联动）；
