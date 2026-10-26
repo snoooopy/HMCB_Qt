@@ -96,7 +96,7 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
     m_rateTimer = new QTimer(this);
     m_rateTimer->setInterval(1000);
     connect(m_rateTimer, &QTimer::timeout, this, [this]() {
-        const int fpsThisSec = m_framesThisSec;   // 先取本秒帧率（下方立即清零）
+        const int fpsThisSec = m_framesThisSec[m_selectedBoard];   // 本秒帧率=选中板（下方清零全部）
         ++m_runSeconds;
         // 运行时间：小时:分钟:秒（对照需求，原为 RUN %1s 纯秒）
         m_stRun->setText(QStringLiteral("RUN %1:%2:%3")
@@ -104,7 +104,7 @@ MainWindow::MainWindow(McbController* ctrl, QWidget* parent)
                              .arg((m_runSeconds / 60) % 60, 2, 10, QLatin1Char('0'))
                              .arg(m_runSeconds % 60, 2, 10, QLatin1Char('0')));
         m_stRate->setText(QStringLiteral("%1 fps").arg(fpsThisSec));
-        m_framesThisSec = 0;
+        for (int b = 0; b < 8; ++b) m_framesThisSec[b] = 0;
         // 帧计数/包计数/DI 由帧回调缓存到此统一刷新（对照 MFC OnTimer 1s 状态栏）；
         // 帧计数 = 选中板计数 + 全部板总计数（选中板与右侧栏单选/网格显示联动）；
         // 多盒时侧栏分板刷新（板数来自 GETMCBNUM，未就绪板保持 0）
@@ -472,7 +472,7 @@ void MainWindow::onFrame(int nMCB, const Mcb::McbFrame& frame) {
     ++m_frameCount[b];                // 按板累计（状态栏显示选中板 + 总数）
     if (m_aSaveImg && !m_aSaveImg->isEnabled() && m_bSaveImg)
         m_aSaveImg->setEnabled(true);     // 对照 OnUpdateSavedata：有帧数据才可用
-    ++m_framesThisSec;
+    ++m_framesThisSec[b];             // fps 显示选中板（按板累计）
     // 速度统计基点：本轮首帧记 base（实机每轮 START 后 scounter 从 1 起，Windows 直接
     // 以绝对 scounter 作平均；mock/重连场景 scounter 不复位，取首帧差值更稳）；
     // 回绕/设备重启时 scounter 变小 → 重置基点避免负速率。
@@ -534,7 +534,7 @@ void MainWindow::onDeviceReady() {
 void MainWindow::onRunStateChanged(bool running) {
     if (running) {
         m_runSeconds = 0;
-        m_framesThisSec = 0;
+        for (int b = 0; b < 8; ++b) m_framesThisSec[b] = 0;
         // 速度统计复位（对照 OnMcbStart:749-757：t/t0/tstart 取当前、uCnt/uCnt0 清零、
         // Pane3 清空——Windows 依赖实机 scounter 每轮从 1 起，这里 base 置 0 待首帧）
         m_speedClock.restart();

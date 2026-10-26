@@ -112,7 +112,7 @@ private:
     // 统计
     qlonglong m_frameCount[8] = {0};    // 按板帧计数（状态栏显示选中板 + 总数）
     int m_runSeconds = 0;
-    int m_framesThisSec = 0;
+    int m_framesThisSec[8] = {0};       // 按板本秒帧数（fps 显示选中板）
     int m_selectedBoard = 0;            // 当前选中板（右侧栏单选 ↔ 网格显示联动）
     // 帧到达时只缓存值，状态栏/侧栏文本统一由 1Hz rateTimer 刷新
     // （对照 MFC OnTimer 1s 更新状态栏；真机包率下每帧 setText 会占满弱核 GUI）
